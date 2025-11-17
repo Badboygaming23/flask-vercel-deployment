@@ -69,7 +69,8 @@ exports.uploadProfilePicture = async (req, res) => {
         return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
-    // Always save files to local folder path
+    // For Vercel deployments, files are stored in /tmp and need to be moved
+    // For local development, files are already in the correct location
     const profilepicturePath = `/images/${req.file.filename}`;
 
     const { data, error } = await supabase
@@ -80,7 +81,9 @@ exports.uploadProfilePicture = async (req, res) => {
     if (error) {
         console.error('Error updating profile picture in DB:', error);
         // Delete the file if there was an error
-        let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+        let filePath = process.env.VERCEL ? 
+            `/tmp/${req.file.filename}` : 
+            `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
         fs.unlink(filePath, (unlinkErr) => {
             if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
         });
@@ -90,7 +93,9 @@ exports.uploadProfilePicture = async (req, res) => {
     // Check if no rows were affected (user not found or not owned by user)
     if (data && data.length === 0) {
         // Delete the file if user not found
-        let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+        let filePath = process.env.VERCEL ? 
+            `/tmp/${req.file.filename}` : 
+            `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
         fs.unlink(filePath, (unlinkErr) => {
             if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
         });
@@ -117,8 +122,43 @@ exports.getProfilePicture = async (req, res) => {
 
     if (users.length > 0) {
         let profilepicture = users[0].profilePicture;
-        // For Vercel Blob URLs, return as-is since they're already full URLs
-        // For local images, return relative path
+        
+        // For Vercel deployments, we need to move files from /tmp to images directory
+        if (process.env.VERCEL && profilepicture && profilepicture.startsWith('/images/') && profilepicture.includes('-')) {
+            // This is a temporary file that needs to be moved
+            const filename = profilepicture.replace('/images/', '');
+            const tmpPath = `/tmp/${filename}`;
+            const targetPath = `./frontend/images/${filename}`;
+            
+            // Check if the file exists in /tmp and move it
+            if (fs.existsSync(tmpPath)) {
+                try {
+                    // Ensure the target directory exists
+                    const targetDir = './frontend/images';
+                    if (!fs.existsSync(targetDir)) {
+                        fs.mkdirSync(targetDir, { recursive: true });
+                    }
+                    
+                    // Move the file from /tmp to images directory
+                    fs.renameSync(tmpPath, targetPath);
+                    console.log(`Moved profile picture from ${tmpPath} to ${targetPath}`);
+                    
+                    // Update the user profile picture path in database
+                    profilepicture = `/images/${filename}`;
+                    
+                    // Update the database with the new path
+                    await supabase
+                        .from('users')
+                        .update({ profilePicture: profilepicture })
+                        .eq('id', userId);
+                } catch (moveError) {
+                    console.error('Error moving profile picture:', moveError);
+                    // If we can't move the file, keep the original path
+                }
+            }
+        }
+        
+        // For static images, return relative path
         if (profilepicture && !profilepicture.startsWith('http')) {
             profilepicture = profilepicture.replace(/\\/g, '/');
         }

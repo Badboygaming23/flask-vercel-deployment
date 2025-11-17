@@ -16,8 +16,15 @@ exports.createAccount = async (req, res) => {
 
     let imagePath = 'images/default.png';
     if (req.file) {
-        // Always save files to local folder path
-        imagePath = `images/${req.file.filename}`;
+        // For Vercel deployments, files are stored in /tmp and need to be moved
+        // For local development, files are already in the correct location
+        if (process.env.VERCEL) {
+            // On Vercel, store the filename only, will move file in getAccounts
+            imagePath = `images/${req.file.filename}`;
+        } else {
+            // For local development, the file is already in the correct directory
+            imagePath = `images/${req.file.filename}`;
+        }
     } else if (req.body.image === 'images/default.png') {
         imagePath = 'images/default.png';
     }
@@ -39,7 +46,9 @@ exports.createAccount = async (req, res) => {
         console.error(error);
         if (req.file) {
             // Delete the file if there was an error
-            let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+            let filePath = process.env.VERCEL ? 
+                `/tmp/${req.file.filename}` : 
+                `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
             fs.unlink(filePath, (unlinkErr) => {
                 if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
             });
@@ -64,10 +73,42 @@ exports.getAccounts = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Error reading accounts.' });
     }
 
+    // Process accounts to handle image paths correctly
     const accountsWithFullImageUrls = accounts.map(account => {
-        if (account.image && !account.image.startsWith('http')) {
-            // For static images, return relative path instead of constructing full URL
-            account.image = account.image.replace(/\\/g, '/');
+        if (account.image) {
+            // For Vercel deployments, we need to move files from /tmp to images directory
+            if (process.env.VERCEL && account.image.startsWith('images/') && account.image.includes('-')) {
+                // This is a temporary file that needs to be moved
+                const filename = account.image.replace('images/', '');
+                const tmpPath = `/tmp/${filename}`;
+                const targetPath = `./frontend/images/${filename}`;
+                
+                // Check if the file exists in /tmp and move it
+                if (fs.existsSync(tmpPath)) {
+                    try {
+                        // Ensure the target directory exists
+                        const targetDir = './frontend/images';
+                        if (!fs.existsSync(targetDir)) {
+                            fs.mkdirSync(targetDir, { recursive: true });
+                        }
+                        
+                        // Move the file from /tmp to images directory
+                        fs.renameSync(tmpPath, targetPath);
+                        console.log(`Moved file from ${tmpPath} to ${targetPath}`);
+                        
+                        // Update the account image path
+                        account.image = `images/${filename}`;
+                    } catch (moveError) {
+                        console.error('Error moving file:', moveError);
+                        // If we can't move the file, keep the original path
+                    }
+                }
+            }
+            
+            // For static images, return relative path
+            if (!account.image.startsWith('http')) {
+                account.image = account.image.replace(/\\/g, '/');
+            }
         }
         return account;
     });
@@ -87,8 +128,15 @@ exports.updateAccount = async (req, res) => {
 
     let imagePath = req.body.currentImage;
     if (req.file) {
-        // Always save files to local folder path
-        imagePath = `images/${req.file.filename}`;
+        // For Vercel deployments, files are stored in /tmp and need to be moved
+        // For local development, files are already in the correct location
+        if (process.env.VERCEL) {
+            // On Vercel, store the filename only, will move file in getAccounts
+            imagePath = `images/${req.file.filename}`;
+        } else {
+            // For local development, the file is already in the correct directory
+            imagePath = `images/${req.file.filename}`;
+        }
     }
 
     const { data, error } = await supabase
@@ -106,7 +154,9 @@ exports.updateAccount = async (req, res) => {
         console.error(error);
         if (req.file) {
             // Delete the file if there was an error
-            let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+            let filePath = process.env.VERCEL ? 
+                `/tmp/${req.file.filename}` : 
+                `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
             fs.unlink(filePath, (unlinkErr) => {
                 if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
             });
@@ -118,7 +168,9 @@ exports.updateAccount = async (req, res) => {
     if (data && data.length === 0) {
         if (req.file) {
             // Delete the file if account not found
-            let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+            let filePath = process.env.VERCEL ? 
+                `/tmp/${req.file.filename}` : 
+                `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
             fs.unlink(filePath, (unlinkErr) => {
                 if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
             });
