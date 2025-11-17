@@ -1,42 +1,51 @@
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: __dirname + '/.env' });
+const supabase = require('./supabaseClient');
 
-// Supabase configuration
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-
-console.log('Supabase URL:', supabaseUrl);
-console.log('Supabase Key:', supabaseKey ? 'Key loaded' : 'Key not loaded');
-
-// Create Supabase client
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-async function testConnection() {
-  try {
-    // Test the connection by trying to get the users table structure
-    const { data, error } = await supabase
-      .from('users')
-      .select('id')
-      .limit(1);
-
-    if (error) {
-      console.error('Error connecting to Supabase:', error.message);
-      return false;
+async function testSupabaseConnection() {
+    console.log('Testing Supabase connection...');
+    console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+    console.log('SUPABASE_KEY exists:', !!process.env.SUPABASE_KEY);
+    
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+        console.error('Supabase credentials not found. Please check your .env file.');
+        return;
     }
-
-    console.log('Successfully connected to Supabase!');
-    console.log('Users table exists and is accessible.');
-    return true;
-  } catch (err) {
-    console.error('Unexpected error:', err.message);
-    return false;
-  }
+    
+    try {
+        // Test database connection by querying users table
+        const { data, error } = await supabase
+            .from('users')
+            .select('id')
+            .limit(1);
+            
+        if (error) {
+            console.error('Database connection test failed:', error);
+            return;
+        }
+        
+        console.log('Database connection successful. Sample data:', data);
+        
+        // Test storage by listing buckets
+        const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
+        
+        if (bucketError) {
+            console.error('Storage connection test failed:', bucketError);
+            return;
+        }
+        
+        console.log('Storage connection successful. Available buckets:', buckets);
+        
+        // Check if 'images' bucket exists
+        const imagesBucket = buckets.find(bucket => bucket.name === 'images');
+        if (imagesBucket) {
+            console.log("Bucket 'images' found:", imagesBucket);
+        } else {
+            console.log("Bucket 'images' not found. Please create it in your Supabase dashboard.");
+        }
+        
+    } catch (err) {
+        console.error('Unexpected error during Supabase test:', err);
+    }
 }
 
-testConnection().then(success => {
-  if (success) {
-    console.log('Supabase setup is correct!');
-  } else {
-    console.log('Please check your Supabase credentials and table setup.');
-  }
-});
+testSupabaseConnection();

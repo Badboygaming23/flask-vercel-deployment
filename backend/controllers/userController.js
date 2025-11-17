@@ -7,33 +7,45 @@ const { JWT_SECRET, BASE_URL } = require('../config/config');
 const { uploadFileToSupabase, deleteFileFromSupabase } = require('../utils/supabaseStorage');
 
 exports.getUserInfo = async (req, res) => {
-    const userId = req.user.id;
-
-    const { data: users, error } = await supabase
-        .from('users')
-        .select('id, firstname, middlename, lastname, email, profilePicture')
-        .eq('id', userId);
-
-    if (error) {
-        console.error('Error in getUserInfo:', error);
-        return res.status(500).json({ success: false, message: 'An error occurred.' });
-    }
-
-    if (users.length > 0) {
-        const user = users[0];
-        // Ensure profilePicture has a default value if null
-        if (!user.profilePicture) {
-            user.profilePicture = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png';
-        }
+    try {
+        const userId = req.user.id;
         
-        // For Supabase Storage URLs, return as-is since they're already full URLs
-        // For local images, return relative path
-        if (user.profilePicture && !user.profilePicture.startsWith('http')) {
-            user.profilePicture = user.profilePicture.replace(/\\/g, '/');
+        console.log('getUserInfo: Fetching user info for user ID:', userId);
+
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('id, firstname, middlename, lastname, email, profilepicture')
+            .eq('id', userId);
+
+        if (error) {
+            console.error('Error in getUserInfo - Supabase query failed:', error);
+            return res.status(500).json({ success: false, message: 'An error occurred while fetching user information.' });
         }
-        res.json({ success: true, user: user });
-    } else {
-        res.status(404).json({ success: false, message: 'User not found.' });
+
+        if (users && users.length > 0) {
+            const user = users[0];
+            console.log('getUserInfo: User found:', user.email);
+            
+            // Ensure profilePicture has a default value if null
+            if (!user.profilepicture) {
+                user.profilepicture = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png';
+            }
+            
+            // For Supabase Storage URLs, return as-is since they're already full URLs
+            // For local images, return relative path
+            if (user.profilepicture && !user.profilepicture.startsWith('http')) {
+                user.profilepicture = user.profilepicture.replace(/\\/g, '/');
+            }
+            
+            console.log('getUserInfo: Returning user data with profile picture:', user.profilepicture);
+            res.json({ success: true, user: user });
+        } else {
+            console.log('getUserInfo: User not found for ID:', userId);
+            res.status(404).json({ success: false, message: 'User not found.' });
+        }
+    } catch (err) {
+        console.error('Error in getUserInfo - Unexpected error:', err);
+        return res.status(500).json({ success: false, message: 'An unexpected error occurred while fetching user information.' });
     }
 };
 
@@ -59,10 +71,7 @@ exports.updateUserInfo = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Error updating user information.' });
     }
 
-    if (data === null) {
-        return res.status(404).json({ success: false, message: 'User not found or no changes made.' });
-    }
-
+    // For update operations, data is typically null, so we check if the operation was successful by checking for error
     res.json({ success: true, message: 'Account information updated successfully!' });
 };
 
@@ -75,7 +84,7 @@ exports.uploadProfilePicture = async (req, res) => {
     // First, get the current user data to retrieve the existing profile picture URL
     const { data: currentUserData, error: fetchError } = await supabase
         .from('users')
-        .select('profilePicture')
+        .select('profilepicture')
         .eq('id', userId);
 
     if (fetchError) {
@@ -88,7 +97,7 @@ exports.uploadProfilePicture = async (req, res) => {
         return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    const currentProfilePicture = currentUserData[0].profilePicture;
+    const currentProfilePicture = currentUserData[0].profilepicture;
     let profilepicturePath = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png';
     
     // Upload file to Supabase Storage
@@ -150,7 +159,7 @@ exports.uploadProfilePicture = async (req, res) => {
 
     const { data, error } = await supabase
         .from('users')
-        .update({ profilePicture: profilepicturePath })
+        .update({ profilepicture: profilepicturePath })
         .eq('id', userId);
 
     if (error) {
@@ -181,35 +190,47 @@ exports.uploadProfilePicture = async (req, res) => {
 };
 
 exports.getProfilePicture = async (req, res) => {
-    const userId = req.user.id;
-
-    const { data: users, error } = await supabase
-        .from('users')
-        .select('profilePicture')
-        .eq('id', userId);
-
-    if (error) {
-        console.error('Error in getProfilePicture:', error);
-        return res.status(500).json({ success: false, message: 'An error occurred.' });
-    }
-
-    if (users.length > 0) {
-        let profilepicture = users[0].profilePicture;
+    try {
+        const userId = req.user.id;
         
-        // Ensure profilePicture has a default value if null
-        if (!profilepicture) {
-            profilepicture = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png';
+        console.log('getProfilePicture: Fetching profile picture for user ID:', userId);
+
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('profilepicture')
+            .eq('id', userId);
+
+        if (error) {
+            console.error('Error in getProfilePicture - Supabase query failed:', error);
+            return res.status(500).json({ success: false, message: 'An error occurred while fetching profile picture.' });
         }
-        
-        // For Supabase Storage URLs, return as-is since they're already full URLs
-        // For local images, return relative path
-        if (profilepicture && !profilepicture.startsWith('http')) {
-            // Ensure the path is properly formatted
-            profilepicture = profilepicture.replace(/\\/g, '/');
+
+        if (users && users.length > 0) {
+            let profilepicture = users[0].profilepicture;
+            
+            console.log('getProfilePicture: Profile picture from DB:', profilepicture);
+            
+            // Ensure profilePicture has a default value if null
+            if (!profilepicture) {
+                profilepicture = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png';
+            }
+            
+            // For Supabase Storage URLs, return as-is since they're already full URLs
+            // For local images, return relative path
+            if (profilepicture && !profilepicture.startsWith('http')) {
+                // Ensure the path is properly formatted
+                profilepicture = profilepicture.replace(/\\/g, '/');
+            }
+            
+            console.log('getProfilePicture: Returning profile picture:', profilepicture);
+            res.json({ success: true, profilepicture: profilepicture });
+        } else {
+            console.log('getProfilePicture: User not found for ID:', userId);
+            res.status(404).json({ success: false, message: 'User not found.' });
         }
-        res.json({ success: true, profilepicture: profilepicture });
-    } else {
-        res.status(404).json({ success: false, message: 'User not found.' });
+    } catch (err) {
+        console.error('Error in getProfilePicture - Unexpected error:', err);
+        return res.status(500).json({ success: false, message: 'An unexpected error occurred while fetching profile picture.' });
     }
 };
 
