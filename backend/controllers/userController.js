@@ -72,7 +72,7 @@ exports.uploadProfilePicture = async (req, res) => {
         return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
-    let profilepicturePath = '/images/default-profile.png';
+    let profilepicturePath = 'images/default-profile.png';
     
     // Upload file to Supabase Storage
     try {
@@ -84,8 +84,15 @@ exports.uploadProfilePicture = async (req, res) => {
         
         if (error) {
             console.error('Error uploading profile picture to Supabase Storage:', error);
+            // Provide a more informative error message
+            if (error.message && error.message.includes('new row violates row-level security policy')) {
+                return res.status(500).json({ 
+                    success: false, 
+                    message: 'Storage bucket not configured properly. Please check Supabase Storage setup instructions in README_SUPABASE_SETUP.txt' 
+                });
+            }
             // Fall back to default image if upload fails
-            profilepicturePath = '/images/default-profile.png';
+            profilepicturePath = 'images/default-profile.png';
         } else {
             profilepicturePath = publicUrl;
         }
@@ -100,7 +107,7 @@ exports.uploadProfilePicture = async (req, res) => {
         }
     } catch (fileReadError) {
         console.error('Error reading file for Supabase upload:', fileReadError);
-        profilepicturePath = '/images/default-profile.png';
+        profilepicturePath = 'images/default-profile.png';
     }
 
     const { data, error } = await supabase

@@ -24,6 +24,13 @@ exports.createAccount = async (req, res) => {
             
             if (error) {
                 console.error('Error uploading file to Supabase Storage:', error);
+                // Provide a more informative error message
+                if (error.message && error.message.includes('new row violates row-level security policy')) {
+                    return res.status(500).json({ 
+                        success: false, 
+                        message: 'Storage bucket not configured properly. Please check Supabase Storage setup instructions in README_SUPABASE_SETUP.txt' 
+                    });
+                }
                 // Fall back to default image if upload fails
                 imagePath = 'images/default.png';
             } else {
@@ -146,6 +153,13 @@ exports.updateAccount = async (req, res) => {
             
             if (error) {
                 console.error('Error uploading file to Supabase Storage:', error);
+                // Provide a more informative error message
+                if (error.message && error.message.includes('new row violates row-level security policy')) {
+                    return res.status(500).json({ 
+                        success: false, 
+                        message: 'Storage bucket not configured properly. Please check Supabase Storage setup instructions in README_SUPABASE_SETUP.txt' 
+                    });
+                }
                 // Keep the current image if upload fails
             } else {
                 imagePath = publicUrl;
