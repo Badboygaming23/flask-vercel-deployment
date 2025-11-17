@@ -20,7 +20,8 @@ exports.getUserInfo = async (req, res) => {
     if (users.length > 0) {
         const user = users[0];
         if (user.profilePicture && !user.profilePicture.startsWith('http')) {
-            user.profilePicture = `${BASE_URL}/${user.profilePicture.replace(/\\/g, '/')}`;
+            // For static images, return relative path instead of constructing full URL
+            user.profilePicture = user.profilePicture.replace(/\\/g, '/');
         }
         res.json({ success: true, user: user });
     } else {
@@ -105,7 +106,8 @@ exports.getProfilePicture = async (req, res) => {
     if (users.length > 0) {
         let profilepicture = users[0].profilePicture;
         if (profilepicture && !profilepicture.startsWith('http')) {
-            profilepicture = `${BASE_URL}/${profilepicture.replace(/\\/g, '/')}`;
+            // For static images, return relative path instead of constructing full URL
+            profilepicture = profilepicture.replace(/\\/g, '/');
         }
         res.json({ success: true, profilepicture: profilepicture });
     } else {

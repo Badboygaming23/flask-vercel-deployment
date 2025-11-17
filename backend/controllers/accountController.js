@@ -59,7 +59,8 @@ exports.getAccounts = async (req, res) => {
 
     const accountsWithFullImageUrls = accounts.map(account => {
         if (account.image && !account.image.startsWith('http')) {
-            account.image = `${config.BASE_URL}/${account.image.replace(/\\/g, '/')}`;
+            // For static images, return relative path instead of constructing full URL
+            account.image = account.image.replace(/\\/g, '/');
         }
         return account;
     });
