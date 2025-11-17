@@ -79,6 +79,7 @@ exports.createAccount = async (req, res) => {
                 }
             }
         }
+        // For local development, the file is already in the correct directory
         imagePath = `images/${req.file.filename}`;
     } else if (req.body.image === 'images/default.png') {
         imagePath = 'images/default.png';
@@ -193,6 +194,7 @@ exports.updateAccount = async (req, res) => {
                 }
             }
         }
+        // For local development, the file is already in the correct directory
         imagePath = `images/${req.file.filename}`;
     }
 
