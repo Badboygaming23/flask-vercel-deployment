@@ -21,7 +21,12 @@ exports.getUserInfo = async (req, res) => {
 
     if (users.length > 0) {
         const user = users[0];
-        // For Vercel Blob URLs, return as-is since they're already full URLs
+        // Ensure profilePicture has a default value if null
+        if (!user.profilePicture) {
+            user.profilePicture = 'images/default-profile.png';
+        }
+        
+        // For Supabase Storage URLs, return as-is since they're already full URLs
         // For local images, return relative path
         if (user.profilePicture && !user.profilePicture.startsWith('http')) {
             user.profilePicture = user.profilePicture.replace(/\\/g, '/');
@@ -145,6 +150,11 @@ exports.getProfilePicture = async (req, res) => {
 
     if (users.length > 0) {
         let profilepicture = users[0].profilePicture;
+        
+        // Ensure profilePicture has a default value if null
+        if (!profilepicture) {
+            profilepicture = 'images/default-profile.png';
+        }
         
         // For Supabase Storage URLs, return as-is since they're already full URLs
         // For local images, return relative path

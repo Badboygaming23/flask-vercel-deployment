@@ -42,6 +42,9 @@ exports.createAccount = async (req, res) => {
             console.error('Error reading file for Supabase upload:', fileReadError);
             imagePath = 'images/default.png';
         }
+    } else if (req.body.image === 'images/default.png') {
+        // Explicitly set default image when no file is uploaded
+        imagePath = 'images/default.png';
     }
 
     // Log the image path for debugging
@@ -92,13 +95,17 @@ exports.getAccounts = async (req, res) => {
 
     // Process accounts to handle image paths correctly
     const accountsWithFullImageUrls = accounts.map(account => {
-        if (account.image) {
-            // For Supabase Storage URLs, return as-is since they're already full URLs
-            // For local images or default images, return relative path
-            if (!account.image.startsWith('http') && account.image !== 'images/default.png') {
-                account.image = account.image.replace(/\\/g, '/');
-            }
+        // Ensure image field has a default value if null
+        if (!account.image) {
+            account.image = 'images/default.png';
         }
+        
+        // For Supabase Storage URLs, return as-is since they're already full URLs
+        // For local images or default images, return relative path
+        if (!account.image.startsWith('http') && account.image !== 'images/default.png') {
+            account.image = account.image.replace(/\\/g, '/');
+        }
+        
         return account;
     });
 
@@ -118,7 +125,7 @@ exports.updateAccount = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Site, username, and password are required.' });
     }
 
-    let imagePath = req.body.currentImage;
+    let imagePath = req.body.currentImage || 'images/default.png';
     if (req.file) {
         // Upload new file to Supabase Storage
         try {
@@ -155,6 +162,9 @@ exports.updateAccount = async (req, res) => {
         } catch (fileReadError) {
             console.error('Error reading file for Supabase upload:', fileReadError);
         }
+    } else if (req.body.image === 'images/default.png') {
+        // If user explicitly selected default image, use it
+        imagePath = 'images/default.png';
     }
 
     // Log the image path for debugging
