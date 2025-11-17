@@ -11,8 +11,12 @@ const userRoutes = require('./routes/userRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 
+// Serve static files from the frontend directory
 app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Serve images from the frontend/images directory
 app.use('/images', express.static(path.join(__dirname, '../frontend/images')));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

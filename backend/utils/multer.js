@@ -8,11 +8,12 @@ const fs = require('fs');
 const storage = multer.diskStorage({
         destination: function (req, file, cb) {
             // Use /tmp directory for Vercel deployments, local directory for development
-            let uploadDir = process.env.VERCEL ? '/tmp' : 'C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images';
+            let uploadDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, '../../frontend/images');
             // Ensure the target directory exists (only for local development)
             if (!process.env.VERCEL && !fs.existsSync(uploadDir)) {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
+            // For Vercel, the /tmp directory always exists
             cb(null, uploadDir);
         },
         filename: function (req, file, cb) {

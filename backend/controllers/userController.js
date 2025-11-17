@@ -69,9 +69,33 @@ exports.uploadProfilePicture = async (req, res) => {
         return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
-    // For Vercel deployments, files are stored in /tmp and need to be moved
-    // For local development, files are already in the correct location
-    const profilepicturePath = `/images/${req.file.filename}`;
+    let profilepicturePath = `/images/${req.file.filename}`;
+    
+    // For Vercel deployments, we need to move the file from /tmp to the images directory
+    if (process.env.VERCEL) {
+        const filename = req.file.filename;
+        const tmpPath = `/tmp/${filename}`;
+        const targetPath = path.join(__dirname, '../../frontend/images', filename);
+        
+        try {
+            // Ensure the target directory exists
+            const targetDir = path.join(__dirname, '../../frontend/images');
+            if (!fs.existsSync(targetDir)) {
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+            
+            // Move the file from /tmp to images directory
+            fs.renameSync(tmpPath, targetPath);
+            console.log(`Moved profile picture from ${tmpPath} to ${targetPath}`);
+            
+            // Set the profile picture path to be relative to the frontend directory
+            profilepicturePath = `/images/${filename}`;
+        } catch (moveError) {
+            console.error('Error moving profile picture:', moveError);
+            // If we can't move the file, fall back to default
+            profilepicturePath = '/images/default-profile.png';
+        }
+    }
 
     const { data, error } = await supabase
         .from('users')
@@ -81,24 +105,36 @@ exports.uploadProfilePicture = async (req, res) => {
     if (error) {
         console.error('Error updating profile picture in DB:', error);
         // Delete the file if there was an error
-        let filePath = process.env.VERCEL ? 
-            `/tmp/${req.file.filename}` : 
-            `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
-        fs.unlink(filePath, (unlinkErr) => {
-            if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-        });
+        if (process.env.VERCEL) {
+            const filename = req.file.filename;
+            const targetPath = path.join(__dirname, '../../frontend/images', filename);
+            fs.unlink(targetPath, (unlinkErr) => {
+                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+            });
+        } else {
+            const filePath = path.join(__dirname, '../../frontend/images', req.file.filename);
+            fs.unlink(filePath, (unlinkErr) => {
+                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+            });
+        }
         return res.status(500).json({ success: false, message: 'Error saving profile picture.' });
     }
 
     // Check if no rows were affected (user not found or not owned by user)
     if (data && data.length === 0) {
         // Delete the file if user not found
-        let filePath = process.env.VERCEL ? 
-            `/tmp/${req.file.filename}` : 
-            `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
-        fs.unlink(filePath, (unlinkErr) => {
-            if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-        });
+        if (process.env.VERCEL) {
+            const filename = req.file.filename;
+            const targetPath = path.join(__dirname, '../../frontend/images', filename);
+            fs.unlink(targetPath, (unlinkErr) => {
+                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+            });
+        } else {
+            const filePath = path.join(__dirname, '../../frontend/images', req.file.filename);
+            fs.unlink(filePath, (unlinkErr) => {
+                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+            });
+        }
         return res.status(404).json({ success: false, message: 'User not found or you do not have permission to update profile picture.' });
     }
 
@@ -123,19 +159,18 @@ exports.getProfilePicture = async (req, res) => {
     if (users.length > 0) {
         let profilepicture = users[0].profilePicture;
         
-        // For Vercel deployments, we need to move files from /tmp to images directory
+        // For Vercel deployments, we need to ensure files exist in the images directory
         // But skip this for default images
-        if (process.env.VERCEL && profilepicture && profilepicture.startsWith('images/') && profilepicture.includes('-') && profilepicture !== 'images/default-profile.png') {
-            // This is a temporary file that needs to be moved
-            const filename = profilepicture.replace('images/', '');
+        if (process.env.VERCEL && profilepicture && profilepicture.startsWith('/images/') && profilepicture.includes('-') && profilepicture !== '/images/default-profile.png') {
+            // Extract filename from the path
+            const filename = profilepicture.replace('/images/', '');
             const tmpPath = `/tmp/${filename}`;
-            // targetPath will be set later with proper path resolution
             
             // Check if the file exists in /tmp and move it
             if (fs.existsSync(tmpPath)) {
                 try {
                     // Ensure the target directory exists
-                    const targetDir = './frontend/images';
+                    const targetDir = path.join(__dirname, '../../frontend/images');
                     if (!fs.existsSync(targetDir)) {
                         fs.mkdirSync(targetDir, { recursive: true });
                     }
@@ -146,7 +181,7 @@ exports.getProfilePicture = async (req, res) => {
                     console.log(`Moved profile picture from ${tmpPath} to ${targetPath}`);
                     
                     // Update the user profile picture path in database
-                    profilepicture = `images/${filename}`;
+                    profilepicture = `/images/${filename}`;
                     
                     // Update the database with the new path
                     await supabase
