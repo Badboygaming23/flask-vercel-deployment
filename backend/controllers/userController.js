@@ -4,32 +4,9 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, BASE_URL } = require('../config/config');
-const { uploadToVercelBlob } = require('../utils/vercelBlob');
+// Removed Vercel Blob import as we're using local file storage
 
-// Helper function to determine the correct images directory path
-const getImagesDirectory = (baseDir) => {
-    console.log('Getting images directory from baseDir:', baseDir);
-    
-    // Try multiple possible paths for Vercel deployment
-    let imagesDir = path.join(baseDir, '../../frontend/images');
-    console.log('Trying imagesDir:', imagesDir);
-    
-    // If the standard path doesn't work, try alternative paths
-    if (!fs.existsSync(path.join(baseDir, '../../frontend'))) {
-        console.log('Standard frontend path not found, trying alternative paths');
-        // Try without the extra ../
-        imagesDir = path.join(baseDir, '../frontend/images');
-        console.log('Trying alternative imagesDir:', imagesDir);
-        
-        // If that doesn't work, try with just frontend
-        if (!fs.existsSync(path.join(baseDir, '../frontend'))) {
-            imagesDir = path.join(baseDir, 'frontend/images');
-            console.log('Trying another alternative imagesDir:', imagesDir);
-        }
-    }
-    
-    return imagesDir;
-};
+// Removed getImagesDirectory helper function as we're using direct file paths
 
 exports.getUserInfo = async (req, res) => {
     const userId = req.user.id;
@@ -92,61 +69,8 @@ exports.uploadProfilePicture = async (req, res) => {
         return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
-    // Check if we're running on Vercel
-    let profilepicturePath;
-    if (process.env.VERCEL) {
-        // Upload to Vercel Blob storage
-        try {
-            profilepicturePath = await uploadToVercelBlob(req.file, 'profiles');
-            console.log('File uploaded to Vercel Blob:', profilepicturePath);
-        } catch (uploadError) {
-            console.error('Error uploading to Vercel Blob:', uploadError);
-            return res.status(500).json({ success: false, message: 'Error uploading profile picture to Vercel Blob storage.' });
-        }
-    } else {
-        // For local development, move file from /tmp to images directory
-        if (req.file.path && req.file.path.startsWith('/tmp')) {
-            // Move file from /tmp to images directory
-            console.log('Current __dirname:', __dirname);
-            const imagesDir = getImagesDirectory(__dirname);
-            const targetPath = path.join(imagesDir, req.file.filename);
-            console.log('Calculated targetPath:', targetPath);
-            
-            // Ensure the target directory exists
-            console.log('Checking if directory exists:', imagesDir);
-            if (!fs.existsSync(imagesDir)) {
-                console.log('Creating directory:', imagesDir);
-                try {
-                    fs.mkdirSync(imagesDir, { recursive: true });
-                    console.log('Directory created successfully');
-                } catch (mkdirError) {
-                    console.error('Error creating directory:', mkdirError);
-                    return res.status(500).json({ success: false, message: 'Error creating image directory. Please try again or contact support.' });
-                }
-            } else {
-                console.log('Directory already exists');
-            }
-            
-            try {
-                console.log('Moving file from', req.file.path, 'to', targetPath);
-                fs.renameSync(req.file.path, targetPath);
-                console.log('File moved successfully');
-            } catch (moveError) {
-                console.error('Error moving file:', moveError);
-                // If rename fails, try copy and delete
-                try {
-                    console.log('Attempting to copy file instead');
-                    fs.copyFileSync(req.file.path, targetPath);
-                    fs.unlinkSync(req.file.path);
-                    console.log('File copied and original deleted successfully');
-                } catch (copyError) {
-                    console.error('Error copying file:', copyError);
-                    return res.status(500).json({ success: false, message: 'Error processing uploaded profile picture. Please try again or contact support.' });
-                }
-            }
-        }
-        profilepicturePath = `/images/${req.file.filename}`;
-    }
+    // Always save files to local folder path
+    const profilepicturePath = `/images/${req.file.filename}`;
 
     const { data, error } = await supabase
         .from('users')
@@ -155,43 +79,26 @@ exports.uploadProfilePicture = async (req, res) => {
 
     if (error) {
         console.error('Error updating profile picture in DB:', error);
-        // For Vercel deployments using Vercel Blob, we don't need to delete local files
-        // For local development, delete the file
-        if (!process.env.VERCEL) {
-            let filePath = req.file.path;
-            if (req.file.path && req.file.path.startsWith('/tmp')) {
-                const imagesDir = getImagesDirectory(__dirname);
-                filePath = path.join(imagesDir, req.file.filename);
-            }
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        }
+        // Delete the file if there was an error
+        let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+        fs.unlink(filePath, (unlinkErr) => {
+            if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+        });
         return res.status(500).json({ success: false, message: 'Error saving profile picture.' });
     }
 
     // Check if no rows were affected (user not found or not owned by user)
     if (data && data.length === 0) {
-        // For Vercel deployments using Vercel Blob, we don't need to delete local files
-        // For local development, delete the file
-        if (!process.env.VERCEL) {
-            let filePath = req.file.path;
-            if (req.file.path && req.file.path.startsWith('/tmp')) {
-                const imagesDir = getImagesDirectory(__dirname);
-                filePath = path.join(imagesDir, req.file.filename);
-            }
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        }
+        // Delete the file if user not found
+        let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+        fs.unlink(filePath, (unlinkErr) => {
+            if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+        });
         return res.status(404).json({ success: false, message: 'User not found or you do not have permission to update profile picture.' });
     }
 
-    // For Vercel Blob URLs, return as-is since they're already full URLs
     // For local images, construct full URL
-    const fullProfilePicturePath = profilepicturePath.startsWith('http') ? 
-        profilepicturePath : 
-        `${BASE_URL}${profilepicturePath.replace(/\\/g, '/')}`;
+    const fullProfilePicturePath = `${BASE_URL}${profilepicturePath.replace(/\\/g, '/')}`;
     res.json({ success: true, message: 'Profile picture updated successfully!', profilepicture: fullProfilePicturePath });
 };
 

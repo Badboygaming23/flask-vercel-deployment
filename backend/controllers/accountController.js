@@ -2,32 +2,9 @@ const supabase = require('../db');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
-const { uploadToVercelBlob } = require('../utils/vercelBlob');
+// Removed Vercel Blob import as we're using local file storage
 
-// Helper function to determine the correct images directory path
-const getImagesDirectory = (baseDir) => {
-    console.log('Getting images directory from baseDir:', baseDir);
-    
-    // Try multiple possible paths for Vercel deployment
-    let imagesDir = path.join(baseDir, '../../frontend/images');
-    console.log('Trying imagesDir:', imagesDir);
-    
-    // If the standard path doesn't work, try alternative paths
-    if (!fs.existsSync(path.join(baseDir, '../../frontend'))) {
-        console.log('Standard frontend path not found, trying alternative paths');
-        // Try without the extra ../
-        imagesDir = path.join(baseDir, '../frontend/images');
-        console.log('Trying alternative imagesDir:', imagesDir);
-        
-        // If that doesn't work, try with just frontend
-        if (!fs.existsSync(path.join(baseDir, '../frontend'))) {
-            imagesDir = path.join(baseDir, 'frontend/images');
-            console.log('Trying another alternative imagesDir:', imagesDir);
-        }
-    }
-    
-    return imagesDir;
-};
+// Removed getImagesDirectory helper function as we're using direct file paths
 
 exports.createAccount = async (req, res) => {
     const { site, username, password } = req.body;
@@ -39,63 +16,8 @@ exports.createAccount = async (req, res) => {
 
     let imagePath = 'images/default.png';
     if (req.file) {
-        // Check if we're running on Vercel
-        const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.NOW_REGION;
-        
-        if (isVercel) {
-            // Upload to Vercel Blob storage
-            try {
-                imagePath = await uploadToVercelBlob(req.file, 'accounts');
-                console.log('File uploaded to Vercel Blob:', imagePath);
-            } catch (uploadError) {
-                console.error('Error uploading to Vercel Blob:', uploadError);
-                return res.status(500).json({ success: false, message: 'Error uploading image to Vercel Blob storage.' });
-            }
-        } else {
-            // For local development, move file from /tmp to images directory
-            if (req.file.path && req.file.path.startsWith('/tmp')) {
-                // Move file from /tmp to images directory
-                console.log('Current __dirname:', __dirname);
-                const imagesDir = getImagesDirectory(__dirname);
-                const targetPath = path.join(imagesDir, req.file.filename);
-                console.log('Calculated targetPath:', targetPath);
-                
-                // Ensure the target directory exists
-                console.log('Checking if directory exists:', imagesDir);
-                if (!fs.existsSync(imagesDir)) {
-                    console.log('Creating directory:', imagesDir);
-                    try {
-                        fs.mkdirSync(imagesDir, { recursive: true });
-                        console.log('Directory created successfully');
-                    } catch (mkdirError) {
-                        console.error('Error creating directory:', mkdirError);
-                        return res.status(500).json({ success: false, message: 'Error creating image directory. Please try again or contact support.' });
-                    }
-                } else {
-                    console.log('Directory already exists');
-                }
-                
-                try {
-                    console.log('Moving file from', req.file.path, 'to', targetPath);
-                    fs.renameSync(req.file.path, targetPath);
-                    console.log('File moved successfully');
-                } catch (moveError) {
-                    console.error('Error moving file:', moveError);
-                    // If rename fails, try copy and delete
-                    try {
-                        console.log('Attempting to copy file instead');
-                        fs.copyFileSync(req.file.path, targetPath);
-                        fs.unlinkSync(req.file.path);
-                        console.log('File copied and original deleted successfully');
-                    } catch (copyError) {
-                        console.error('Error copying file:', copyError);
-                        return res.status(500).json({ success: false, message: 'Error processing uploaded file in create account. Please try again or contact support.' });
-                    }
-                }
-            }
-            // For local development, the file is already in the correct directory
-            imagePath = `images/${req.file.filename}`;
-        }
+        // Always save files to local folder path
+        imagePath = `images/${req.file.filename}`;
     } else if (req.body.image === 'images/default.png') {
         imagePath = 'images/default.png';
     }
@@ -116,18 +38,11 @@ exports.createAccount = async (req, res) => {
     if (error) {
         console.error(error);
         if (req.file) {
-            // For Vercel deployments using Vercel Blob, we don't need to delete local files
-            // For local development, delete the file
-            if (!(process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.NOW_REGION)) {
-                let filePath = req.file.path;
-                if (req.file.path && req.file.path.startsWith('/tmp')) {
-                    const imagesDir = getImagesDirectory(__dirname);
-                    filePath = path.join(imagesDir, req.file.filename);
-                }
-                fs.unlink(filePath, (unlinkErr) => {
-                    if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-                });
-            }
+            // Delete the file if there was an error
+            let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+            fs.unlink(filePath, (unlinkErr) => {
+                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+            });
         }
         return res.status(500).json({ success: false, message: 'Error creating account.' });
     }
@@ -172,63 +87,8 @@ exports.updateAccount = async (req, res) => {
 
     let imagePath = req.body.currentImage;
     if (req.file) {
-        // Check if we're running on Vercel
-        const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.NOW_REGION;
-        
-        if (isVercel) {
-            // Upload to Vercel Blob storage
-            try {
-                imagePath = await uploadToVercelBlob(req.file, 'accounts');
-                console.log('File uploaded to Vercel Blob:', imagePath);
-            } catch (uploadError) {
-                console.error('Error uploading to Vercel Blob:', uploadError);
-                return res.status(500).json({ success: false, message: 'Error uploading image to Vercel Blob storage.' });
-            }
-        } else {
-            // For local development, move file from /tmp to images directory
-            if (req.file.path && req.file.path.startsWith('/tmp')) {
-                // Move file from /tmp to images directory
-                console.log('Current __dirname:', __dirname);
-                const imagesDir = getImagesDirectory(__dirname);
-                const targetPath = path.join(imagesDir, req.file.filename);
-                console.log('Calculated targetPath:', targetPath);
-                
-                // Ensure the target directory exists
-                console.log('Checking if directory exists:', imagesDir);
-                if (!fs.existsSync(imagesDir)) {
-                    console.log('Creating directory:', imagesDir);
-                    try {
-                        fs.mkdirSync(imagesDir, { recursive: true });
-                        console.log('Directory created successfully');
-                    } catch (mkdirError) {
-                        console.error('Error creating directory:', mkdirError);
-                        return res.status(500).json({ success: false, message: 'Error creating image directory. Please try again or contact support.' });
-                    }
-                } else {
-                    console.log('Directory already exists');
-                }
-                
-                try {
-                    console.log('Moving file from', req.file.path, 'to', targetPath);
-                    fs.renameSync(req.file.path, targetPath);
-                    console.log('File moved successfully');
-                } catch (moveError) {
-                    console.error('Error moving file:', moveError);
-                    // If rename fails, try copy and delete
-                    try {
-                        console.log('Attempting to copy file instead');
-                        fs.copyFileSync(req.file.path, targetPath);
-                        fs.unlinkSync(req.file.path);
-                        console.log('File copied and original deleted successfully');
-                    } catch (copyError) {
-                        console.error('Error copying file:', copyError);
-                        return res.status(500).json({ success: false, message: 'Error processing uploaded file in update account. Please try again or contact support.' });
-                    }
-                }
-            }
-            // For local development, the file is already in the correct directory
-            imagePath = `images/${req.file.filename}`;
-        }
+        // Always save files to local folder path
+        imagePath = `images/${req.file.filename}`;
     }
 
     const { data, error } = await supabase
@@ -245,18 +105,11 @@ exports.updateAccount = async (req, res) => {
     if (error) {
         console.error(error);
         if (req.file) {
-            // For Vercel deployments using Vercel Blob, we don't need to delete local files
-            // For local development, delete the file
-            if (!(process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.NOW_REGION)) {
-                let filePath = req.file.path;
-                if (req.file.path && req.file.path.startsWith('/tmp')) {
-                    const imagesDir = getImagesDirectory(__dirname);
-                    filePath = path.join(imagesDir, req.file.filename);
-                }
-                fs.unlink(filePath, (unlinkErr) => {
-                    if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-                });
-            }
+            // Delete the file if there was an error
+            let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+            fs.unlink(filePath, (unlinkErr) => {
+                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+            });
         }
         return res.status(500).json({ success: false, message: 'Error updating account.' });
     }
@@ -264,18 +117,11 @@ exports.updateAccount = async (req, res) => {
     // Check if no rows were affected (account not found or not owned by user)
     if (data && data.length === 0) {
         if (req.file) {
-            // For Vercel deployments using Vercel Blob, we don't need to delete local files
-            // For local development, delete the file
-            if (!(process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.NOW_REGION)) {
-                let filePath = req.file.path;
-                if (req.file.path && req.file.path.startsWith('/tmp')) {
-                    const imagesDir = getImagesDirectory(__dirname);
-                    filePath = path.join(imagesDir, req.file.filename);
-                }
-                fs.unlink(filePath, (unlinkErr) => {
-                    if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-                });
-            }
+            // Delete the file if account not found
+            let filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
+            fs.unlink(filePath, (unlinkErr) => {
+                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+            });
         }
         return res.status(404).json({ success: false, message: 'Account not found or you do not have permission to update it.' });
     }

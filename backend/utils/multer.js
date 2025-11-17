@@ -2,15 +2,13 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// For Vercel deployments, we'll use memory storage to upload directly to Vercel Blob
-// For local development, we'll use disk storage
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.NOW_REGION;
-const storage = isVercel ? 
-    multer.memoryStorage() : // Store in memory for Vercel
-    multer.diskStorage({
+// Always use disk storage to save files directly to local folder
+// This ensures consistent behavior across all environments
+const storage = multer.diskStorage({
         destination: function (req, file, cb) {
-            let uploadDir = path.join(__dirname, '../../frontend', 'images');
-            // Local development - use frontend/images directory
+            // Use the specified local folder path
+            let uploadDir = 'C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images';
+            // Ensure the target directory exists
             if (!fs.existsSync(uploadDir)) {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
