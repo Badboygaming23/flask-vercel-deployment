@@ -170,17 +170,22 @@ exports.updateAccount = async (req, res) => {
                 // If there was a previous image stored in Supabase Storage, delete it
                 if (currentImage && currentImage.startsWith('http') && currentImage.includes('supabase.co/storage')) {
                     try {
-                        // Extract the file name from the URL
+                        // Extract the file path from the URL
+                        // The URL format is: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
                         const urlParts = currentImage.split('/');
-                        const oldFileName = urlParts[urlParts.length - 1];
-                        const oldFilePath = `accounts/${oldFileName}`;
-                        console.log(`Deleting old image file: ${oldFilePath}`);
-                        const { error: deleteError } = await deleteFileFromSupabase(oldFilePath, 'images');
-                        
-                        if (deleteError) {
-                            console.error('Error deleting old image from Supabase Storage:', deleteError);
-                        } else {
-                            console.log('Old image deleted successfully from Supabase Storage');
+                        // Find the index of 'object' in the URL parts
+                        const objectIndex = urlParts.indexOf('object');
+                        if (objectIndex !== -1 && objectIndex + 2 < urlParts.length) {
+                            // Get everything after 'object/public/<bucket>/'
+                            const oldFilePath = urlParts.slice(objectIndex + 3).join('/');
+                            console.log(`Deleting old image file: ${oldFilePath}`);
+                            const { error: deleteError } = await deleteFileFromSupabase(oldFilePath, 'images');
+                            
+                            if (deleteError) {
+                                console.error('Error deleting old image from Supabase Storage:', deleteError);
+                            } else {
+                                console.log('Old image deleted successfully from Supabase Storage');
+                            }
                         }
                     } catch (deleteErr) {
                         console.error('Error deleting old image file:', deleteErr);
@@ -206,17 +211,22 @@ exports.updateAccount = async (req, res) => {
         // If there was a previous image stored in Supabase Storage, delete it
         if (currentImage && currentImage.startsWith('http') && currentImage.includes('supabase.co/storage')) {
             try {
-                // Extract the file name from the URL
+                // Extract the file path from the URL
+                // The URL format is: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
                 const urlParts = currentImage.split('/');
-                const oldFileName = urlParts[urlParts.length - 1];
-                const oldFilePath = `accounts/${oldFileName}`;
-                console.log(`Deleting old image file: ${oldFilePath}`);
-                const { error: deleteError } = await deleteFileFromSupabase(oldFilePath, 'images');
-                
-                if (deleteError) {
-                    console.error('Error deleting old image from Supabase Storage:', deleteError);
-                } else {
-                    console.log('Old image deleted successfully from Supabase Storage');
+                // Find the index of 'object' in the URL parts
+                const objectIndex = urlParts.indexOf('object');
+                if (objectIndex !== -1 && objectIndex + 2 < urlParts.length) {
+                    // Get everything after 'object/public/<bucket>/'
+                    const oldFilePath = urlParts.slice(objectIndex + 3).join('/');
+                    console.log(`Deleting old image file: ${oldFilePath}`);
+                    const { error: deleteError } = await deleteFileFromSupabase(oldFilePath, 'images');
+                    
+                    if (deleteError) {
+                        console.error('Error deleting old image from Supabase Storage:', deleteError);
+                    } else {
+                        console.log('Old image deleted successfully from Supabase Storage');
+                    }
                 }
             } catch (deleteErr) {
                 console.error('Error deleting old image file:', deleteErr);
@@ -248,9 +258,13 @@ exports.updateAccount = async (req, res) => {
         // If we uploaded a new file but the update failed, try to delete the uploaded file
         if (req.file && imagePath && imagePath.startsWith('http')) {
             const urlParts = imagePath.split('/');
-            const fileName = urlParts[urlParts.length - 1];
-            const filePath = `accounts/${fileName}`;
-            await deleteFileFromSupabase(filePath, 'images');
+            // Find the index of 'object' in the URL parts
+            const objectIndex = urlParts.indexOf('object');
+            if (objectIndex !== -1 && objectIndex + 2 < urlParts.length) {
+                // Get everything after 'object/public/<bucket>/'
+                const filePath = urlParts.slice(objectIndex + 3).join('/');
+                await deleteFileFromSupabase(filePath, 'images');
+            }
         }
         return res.status(404).json({ success: false, message: 'Account not found or you do not have permission to update it.' });
     }
@@ -301,18 +315,23 @@ exports.deleteAccount = async (req, res) => {
     // If the account had an image stored in Supabase Storage, delete it
     if (accountImage && accountImage.startsWith('http') && accountImage.includes('supabase.co/storage')) {
         try {
-            // Extract the file name from the URL
+            // Extract the file path from the URL
+            // The URL format is: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
             const urlParts = accountImage.split('/');
-            const fileName = urlParts[urlParts.length - 1];
-            const filePath = `accounts/${fileName}`;
-            
-            console.log(`Deleting image file: ${filePath}`);
-            const { error: deleteError } = await deleteFileFromSupabase(filePath, 'images');
-            
-            if (deleteError) {
-                console.error('Error deleting image from Supabase Storage:', deleteError);
-            } else {
-                console.log('Image deleted successfully from Supabase Storage');
+            // Find the index of 'object' in the URL parts
+            const objectIndex = urlParts.indexOf('object');
+            if (objectIndex !== -1 && objectIndex + 2 < urlParts.length) {
+                // Get everything after 'object/public/<bucket>/'
+                const filePath = urlParts.slice(objectIndex + 3).join('/');
+                
+                console.log(`Deleting image file: ${filePath}`);
+                const { error: deleteError } = await deleteFileFromSupabase(filePath, 'images');
+                
+                if (deleteError) {
+                    console.error('Error deleting image from Supabase Storage:', deleteError);
+                } else {
+                    console.log('Image deleted successfully from Supabase Storage');
+                }
             }
         } catch (deleteErr) {
             console.error('Error deleting image file:', deleteErr);

@@ -112,17 +112,22 @@ exports.uploadProfilePicture = async (req, res) => {
             // If there was a previous profile picture stored in Supabase Storage, delete it
             if (currentProfilePicture && currentProfilePicture.startsWith('http') && currentProfilePicture.includes('supabase.co/storage')) {
                 try {
-                    // Extract the file name from the URL
+                    // Extract the file path from the URL
+                    // The URL format is: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
                     const urlParts = currentProfilePicture.split('/');
-                    const oldFileName = urlParts[urlParts.length - 1];
-                    const oldFilePath = `profile-pictures/${oldFileName}`;
-                    console.log(`Deleting old profile picture file: ${oldFilePath}`);
-                    const { error: deleteError } = await deleteFileFromSupabase(oldFilePath, 'images');
-                    
-                    if (deleteError) {
-                        console.error('Error deleting old profile picture from Supabase Storage:', deleteError);
-                    } else {
-                        console.log('Old profile picture deleted successfully from Supabase Storage');
+                    // Find the index of 'object' in the URL parts
+                    const objectIndex = urlParts.indexOf('object');
+                    if (objectIndex !== -1 && objectIndex + 2 < urlParts.length) {
+                        // Get everything after 'object/public/<bucket>/'
+                        const oldFilePath = urlParts.slice(objectIndex + 3).join('/');
+                        console.log(`Deleting old profile picture file: ${oldFilePath}`);
+                        const { error: deleteError } = await deleteFileFromSupabase(oldFilePath, 'images');
+                        
+                        if (deleteError) {
+                            console.error('Error deleting old profile picture from Supabase Storage:', deleteError);
+                        } else {
+                            console.log('Old profile picture deleted successfully from Supabase Storage');
+                        }
                     }
                 } catch (deleteErr) {
                     console.error('Error deleting old profile picture file:', deleteErr);
