@@ -1,30 +1,34 @@
-const db = require('../db');
+const supabase = require('../db');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, BASE_URL } = require('../config/config');
 
-exports.getUserInfo = (req, res) => {
+exports.getUserInfo = async (req, res) => {
     const userId = req.user.id;
-    const sql = "SELECT id, firstname, middlename, lastname, email, profilePicture FROM users WHERE id = ?";
-    db.query(sql, [userId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: 'An error occurred.' });
+
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('id, firstname, middlename, lastname, email, profilePicture')
+        .eq('id', userId);
+
+    if (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, message: 'An error occurred.' });
+    }
+
+    if (users.length > 0) {
+        const user = users[0];
+        if (user.profilePicture && !user.profilePicture.startsWith('http')) {
+            user.profilePicture = `${BASE_URL}/${user.profilePicture.replace(/\\/g, '/')}`;
         }
-        if (result.length > 0) {
-            const user = result[0];
-            if (user.profilePicture && !user.profilePicture.startsWith('http')) {
-                user.profilePicture = `${BASE_URL}/${user.profilePicture.replace(/\\/g, '/')}`;
-            }
-            res.json({ success: true, user: user });
-        } else {
-            res.status(404).json({ success: false, message: 'User not found.' });
-        }
-    });
+        res.json({ success: true, user: user });
+    } else {
+        res.status(404).json({ success: false, message: 'User not found.' });
+    }
 };
 
-exports.updateUserInfo = (req, res) => {
+exports.updateUserInfo = async (req, res) => {
     const userId = req.params.id;
     const { firstname, middlename, lastname, email } = req.body;
 
@@ -36,20 +40,24 @@ exports.updateUserInfo = (req, res) => {
         return res.status(400).json({ success: false, message: 'First name, last name, and email are required.' });
     }
 
-    const sql = "UPDATE users SET firstname = ?, middlename = ?, lastname = ?, email = ? WHERE id = ?";
-    db.query(sql, [firstname, middlename, lastname, email, userId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: 'Error updating user information.' });
-        }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ success: false, message: 'User not found or no changes made.' });
-        }
-        res.json({ success: true, message: 'Account information updated successfully!' });
-    });
+    const { data, error } = await supabase
+        .from('users')
+        .update({ firstname, middlename, lastname, email })
+        .eq('id', userId);
+
+    if (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, message: 'Error updating user information.' });
+    }
+
+    if (data === null) {
+        return res.status(404).json({ success: false, message: 'User not found or no changes made.' });
+    }
+
+    res.json({ success: true, message: 'Account information updated successfully!' });
 };
 
-exports.uploadProfilePicture = (req, res) => {
+exports.uploadProfilePicture = async (req, res) => {
     const userId = req.user.id;
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded.' });
@@ -57,47 +65,55 @@ exports.uploadProfilePicture = (req, res) => {
 
     const profilePicturePath = `/images/${req.file.filename}`;
 
-    const sql = "UPDATE users SET profilePicture = ? WHERE id = ?";
-    db.query(sql, [profilePicturePath, userId], (err, result) => {
-        if (err) {
-            console.error('Error updating profile picture in DB:', err);
-            fs.unlink(req.file.path, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-            return res.status(500).json({ success: false, message: 'Error saving profile picture.' });
-        }
-        if (result.affectedRows === 0) {
-            fs.unlink(req.file.path, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-            return res.status(404).json({ success: false, message: 'User not found or you do not have permission to update profile picture.' });
-        }
-        const fullProfilePicturePath = `${BASE_URL}${profilePicturePath.replace(/\\/g, '/')}`;
-        res.json({ success: true, message: 'Profile picture updated successfully!', profilePicture: fullProfilePicturePath });
-    });
+    const { data, error } = await supabase
+        .from('users')
+        .update({ profilePicture: profilePicturePath })
+        .eq('id', userId);
+
+    if (error) {
+        console.error('Error updating profile picture in DB:', error);
+        fs.unlink(req.file.path, (unlinkErr) => {
+            if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+        });
+        return res.status(500).json({ success: false, message: 'Error saving profile picture.' });
+    }
+
+    if (data === null) {
+        fs.unlink(req.file.path, (unlinkErr) => {
+            if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
+        });
+        return res.status(404).json({ success: false, message: 'User not found or you do not have permission to update profile picture.' });
+    }
+
+    const fullProfilePicturePath = `${BASE_URL}${profilePicturePath.replace(/\\/g, '/')}`;
+    res.json({ success: true, message: 'Profile picture updated successfully!', profilePicture: fullProfilePicturePath });
 };
 
-exports.getProfilePicture = (req, res) => {
+exports.getProfilePicture = async (req, res) => {
     const userId = req.user.id;
-    const sql = "SELECT profilePicture FROM users WHERE id = ?";
-    db.query(sql, [userId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: 'An error occurred.' });
+
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('profilePicture')
+        .eq('id', userId);
+
+    if (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, message: 'An error occurred.' });
+    }
+
+    if (users.length > 0) {
+        let profilePicture = users[0].profilePicture;
+        if (profilePicture && !profilePicture.startsWith('http')) {
+            profilePicture = `${BASE_URL}/${profilePicture.replace(/\\/g, '/')}`;
         }
-        if (result.length > 0) {
-            let profilePicture = result[0].profilePicture;
-            if (profilePicture && !profilePicture.startsWith('http')) {
-                profilePicture = `${BASE_URL}/${profilePicture.replace(/\\/g, '/')}`;
-            }
-            res.json({ success: true, profilePicture: profilePicture });
-        } else {
-            res.status(404).json({ success: false, message: 'User not found.' });
-        }
-    });
+        res.json({ success: true, profilePicture: profilePicture });
+    } else {
+        res.status(404).json({ success: false, message: 'User not found.' });
+    }
 };
 
-exports.verifyCurrentPassword = (req, res) => {
+exports.verifyCurrentPassword = async (req, res) => {
     const { currentPassword } = req.body;
     const userId = req.user.id;
 
@@ -105,32 +121,35 @@ exports.verifyCurrentPassword = (req, res) => {
         return res.status(400).json({ success: false, message: 'Current password is required.' });
     }
 
-    const sql = "SELECT password FROM users WHERE id = ?";
-    db.query(sql, [userId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: 'An error occurred.' });
-        }
-        if (result.length === 0) {
-            return res.status(404).json({ success: false, message: 'User not found.' });
-        }
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('password')
+        .eq('id', userId);
 
-        const hashedPassword = result[0].password;
-        bcrypt.compare(currentPassword, hashedPassword, (compareErr, isMatch) => {
-            if (compareErr) {
-                console.error(compareErr);
-                return res.status(500).json({ success: false, message: 'An error occurred during password comparison.' });
-            }
-            if (isMatch) {
-                res.json({ success: true, message: 'Current password matches.' });
-            } else {
-                res.status(401).json({ success: false, message: 'Current password does not match.' });
-            }
-        });
+    if (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, message: 'An error occurred.' });
+    }
+
+    if (users.length === 0) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const hashedPassword = users[0].password;
+    bcrypt.compare(currentPassword, hashedPassword, (compareErr, isMatch) => {
+        if (compareErr) {
+            console.error(compareErr);
+            return res.status(500).json({ success: false, message: 'An error occurred during password comparison.' });
+        }
+        if (isMatch) {
+            res.json({ success: true, message: 'Current password matches.' });
+        } else {
+            res.status(401).json({ success: false, message: 'Current password does not match.' });
+        }
     });
 };
 
-exports.changePassword = (req, res) => {
+exports.changePassword = async (req, res) => {
     const { currentPassword, newPassword, confirmNewPassword } = req.body;
     const userId = req.user.id;
     const userEmail = req.user.email;
@@ -145,57 +164,66 @@ exports.changePassword = (req, res) => {
         return res.status(400).json({ success: false, message: 'New password and confirm password do not match.' });
     }
 
-    const checkSql = "SELECT password FROM users WHERE id = ?";
-    db.query(checkSql, [userId], (err, result) => {
-        if (err) {
-            console.error('/change-password: Error verifying current password from DB:', err);
-            return res.status(500).json({ success: false, message: 'An error occurred while verifying current password.' });
+    const { data: users, error: checkError } = await supabase
+        .from('users')
+        .select('password')
+        .eq('id', userId);
+
+    if (checkError) {
+        console.error('/change-password: Error verifying current password from DB:', checkError);
+        return res.status(500).json({ success: false, message: 'An error occurred while verifying current password.' });
+    }
+
+    if (users.length === 0) {
+        console.log('/change-password: User not found for ID:', userId);
+        return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const hashedPassword = users[0].password;
+    bcrypt.compare(currentPassword, hashedPassword, async (compareErr, isMatch) => {
+        if (compareErr) {
+            console.error('/change-password: Error comparing current password:', compareErr);
+            return res.status(500).json({ success: false, message: 'An error occurred during current password verification.' });
         }
-        if (result.length === 0) {
-            console.log('/change-password: User not found for ID:', userId);
-            return res.status(404).json({ success: false, message: 'User not found.' });
+        if (!isMatch) {
+            console.log('/change-password: Invalid current password for user ID:', userId);
+            return res.status(401).json({ success: false, message: 'Invalid current password.' });
         }
 
-        const hashedPassword = result[0].password;
-        bcrypt.compare(currentPassword, hashedPassword, (compareErr, isMatch) => {
-            if (compareErr) {
-                console.error('/change-password: Error comparing current password:', compareErr);
-                return res.status(500).json({ success: false, message: 'An error occurred during current password verification.' });
-            }
-            if (!isMatch) {
-                console.log('/change-password: Invalid current password for user ID:', userId);
-                return res.status(401).json({ success: false, message: 'Invalid current password.' });
+        bcrypt.hash(newPassword, 10, async (hashErr, newHashedPassword) => {
+            if (hashErr) {
+                console.error('/change-password: Error hashing new password:', hashErr);
+                return res.status(500).json({ success: false, message: 'An error occurred during new password hashing.' });
             }
 
-            bcrypt.hash(newPassword, 10, (hashErr, newHashedPassword) => {
-                if (hashErr) {
-                    console.error('/change-password: Error hashing new password:', hashErr);
-                    return res.status(500).json({ success: false, message: 'An error occurred during new password hashing.' });
-                }
+            const { data, error: updateError } = await supabase
+                .from('users')
+                .update({ password: newHashedPassword })
+                .eq('id', userId);
 
-                const updateSql = "UPDATE users SET password = ? WHERE id = ?";
-                db.query(updateSql, [newHashedPassword, userId], (err, updateResult) => {
-                    if (err) {
-                        console.error('/change-password: Error updating password in DB:', err);
-                        return res.status(500).json({ success: false, message: 'An error occurred while changing password.' });
-                    }
-                    console.log('/change-password: Password updated in DB for user ID:', userId);
+            if (updateError) {
+                console.error('/change-password: Error updating password in DB:', updateError);
+                return res.status(500).json({ success: false, message: 'An error occurred while changing password.' });
+            }
 
-                    const expiresIn = '1h';
-                    const newAccessToken = jwt.sign({ id: userId, email: userEmail }, JWT_SECRET, { expiresIn });
-                    console.log('/change-password: Generated new token:', newAccessToken.substring(0, 10) + '...');
+            console.log('/change-password: Password updated in DB for user ID:', userId);
 
-                    const updateTokenSql = "UPDATE users SET token = ? WHERE id = ?";
-                    db.query(updateTokenSql, [newAccessToken, userId], (tokenUpdateErr) => {
-                        if (tokenUpdateErr) {
-                            console.error('/change-password: Error updating token after password change:', tokenUpdateErr);
-                            return res.status(500).json({ success: false, message: 'An error occurred while updating session.' });
-                        }
-                        console.log('/change-password: Token updated in DB for user ID:', userId);
-                        res.json({ success: true, message: 'Password changed successfully!', token: newAccessToken });
-                    });
-                });
-            });
+            const expiresIn = '1h';
+            const newAccessToken = jwt.sign({ id: userId, email: userEmail }, JWT_SECRET, { expiresIn });
+            console.log('/change-password: Generated new token:', newAccessToken.substring(0, 10) + '...');
+
+            const { error: tokenUpdateError } = await supabase
+                .from('users')
+                .update({ token: newAccessToken })
+                .eq('id', userId);
+
+            if (tokenUpdateError) {
+                console.error('/change-password: Error updating token after password change:', tokenUpdateError);
+                return res.status(500).json({ success: false, message: 'An error occurred while updating session.' });
+            }
+
+            console.log('/change-password: Token updated in DB for user ID:', userId);
+            res.json({ success: true, message: 'Password changed successfully!', token: newAccessToken });
         });
     });
 };

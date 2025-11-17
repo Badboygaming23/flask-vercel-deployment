@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
-const db = require('../db');
+const supabase = require('../db');
 const transporter = require('../utils/mailer');
 const { JWT_SECRET } = require('../config/config');
 
@@ -13,50 +13,54 @@ exports.requestOtp = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Email is required.' });
     }
 
-    const checkEmailSql = "SELECT * FROM users WHERE email = ?";
-    db.query(checkEmailSql, [email], async (err, result) => {
-        if (err) {
-            console.error('Database error during email check:', err);
-            return res.status(500).json({ success: false, message: 'An error occurred during email check.' });
-        }
-        if (result.length > 0) {
-            return res.status(409).json({ success: false, message: 'Email already in use. Please try logging in.' });
-        }
+    // Check if user already exists
+    const { data: users, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email);
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + (5 * 60 * 1000));
+    if (userError) {
+        console.error('Database error during email check:', userError);
+        return res.status(500).json({ success: false, message: 'An error occurred during email check.' });
+    }
 
-        const insertOtpSql = `
-            INSERT INTO otps (email, otp_code, expires_at)
-            VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-            otp_code = VALUES(otp_code), expires_at = VALUES(expires_at), created_at = CURRENT_TIMESTAMP
-        `;
-        db.query(insertOtpSql, [email, otp, expiresAt], async (dbErr) => {
-            if (dbErr) {
-                console.error('Error storing OTP in DB:', dbErr);
-                return res.status(500).json({ success: false, message: 'An error occurred while storing OTP.' });
-            }
+    if (users.length > 0) {
+        return res.status(409).json({ success: false, message: 'Email already in use. Please try logging in.' });
+    }
 
-            try {
-                const emailTemplatePath = path.join(__dirname, '../../frontend', 'templates', 'otp_email.html');
-                let emailHtml = fs.readFileSync(emailTemplatePath, 'utf8');
-                emailHtml = emailHtml.replace('{{OTP_CODE}}', otp);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + (5 * 60 * 1000));
 
-                await transporter.sendMail({
-                    from: '"Leirad Noznag" <darielganzon2003@gmail.com>',
-                    to: email,
-                    subject: 'Your OTP for Registration',
-                    html: emailHtml,
-                    text: `Your One-Time Password (OTP) is: ${otp}. It is valid for 5 minutes. Do not share this with anyone.`,
-                });
-                res.json({ success: true, message: 'OTP sent successfully to ' + email });
-            } catch (error) {
-                console.error('Error sending email:', error);
-                res.status(500).json({ success: false, message: 'Failed to send OTP. Mailer Error: ' + error.message });
-            }
+    // Insert or update OTP
+    const { data, error: otpError } = await supabase
+        .from('otps')
+        .upsert(
+            { email: email, otp_code: otp, expires_at: expiresAt },
+            { onConflict: 'email' }
+        );
+
+    if (otpError) {
+        console.error('Error storing OTP in DB:', otpError);
+        return res.status(500).json({ success: false, message: 'An error occurred while storing OTP.' });
+    }
+
+    try {
+        const emailTemplatePath = path.join(__dirname, '../../frontend', 'templates', 'otp_email.html');
+        let emailHtml = fs.readFileSync(emailTemplatePath, 'utf8');
+        emailHtml = emailHtml.replace('{{OTP_CODE}}', otp);
+
+        await transporter.sendMail({
+            from: '"Leirad Noznag" <darielganzon2003@gmail.com>',
+            to: email,
+            subject: 'Your OTP for Registration',
+            html: emailHtml,
+            text: `Your One-Time Password (OTP) is: ${otp}. It is valid for 5 minutes. Do not share this with anyone.`,
         });
-    });
+        res.json({ success: true, message: 'OTP sent successfully to ' + email });
+    } catch (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ success: false, message: 'Failed to send OTP. Mailer Error: ' + error.message });
+    }
 };
 
 exports.requestPasswordResetOtp = async (req, res) => {
@@ -66,154 +70,191 @@ exports.requestPasswordResetOtp = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Email is required.' });
     }
 
-    const checkUserSql = `SELECT id FROM users WHERE email = ?`;
-    db.query(checkUserSql, [email], async (err, result) => {
-        if (err) {
-            console.error('Database error during user check for forgot password:', err);
-            return res.status(500).json({ success: false, message: 'An error occurred.' });
-        }
-        if (result.length === 0) {
-            return res.status(404).json({ success: false, message: 'Email not found.' });
-        }
+    // Check if user exists
+    const { data: users, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email);
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + (5 * 60 * 1000));
+    if (userError) {
+        console.error('Database error during user check for forgot password:', userError);
+        return res.status(500).json({ success: false, message: 'An error occurred.' });
+    }
 
-        const insertOtpSql = `
-            INSERT INTO otps (email, otp_code, expires_at)
-            VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-            otp_code = VALUES(otp_code), expires_at = VALUES(expires_at), created_at = CURRENT_TIMESTAMP
-        `;
-        db.query(insertOtpSql, [email, otp, expiresAt], async (dbErr) => {
-            if (dbErr) {
-                console.error('Error storing OTP for forgot password in DB:', dbErr);
-                return res.status(500).json({ success: false, message: 'An error occurred while storing OTP.' });
-            }
+    if (users.length === 0) {
+        return res.status(404).json({ success: false, message: 'Email not found.' });
+    }
 
-            try {
-                const emailTemplatePath = path.join(__dirname, '../../frontend', 'templates', 'forgot_password_otp_email.html');
-                let emailHtml = fs.readFileSync(emailTemplatePath, 'utf8');
-                emailHtml = emailHtml.replace('{{OTP_CODE}}', otp);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + (5 * 60 * 1000));
 
-                await transporter.sendMail({
-                    from: '"Leirad Noznag" <darielganzon2003@gmail.com>',
-                    to: email,
-                    subject: 'Password Reset OTP',
-                    html: emailHtml,
-                    text: `Your One-Time Password (OTP) for password reset is: ${otp}. It is valid for 5 minutes. Do not share this with anyone.`,
-                });
-                res.json({ success: true, message: 'Password reset OTP sent successfully to ' + email });
-            } catch (error) {
-                console.error('Error sending password reset email:', error);
-                res.status(500).json({ success: false, message: 'Failed to send password reset OTP. Mailer Error: ' + error.message });
-            }
+    // Insert or update OTP
+    const { data, error: otpError } = await supabase
+        .from('otps')
+        .upsert(
+            { email: email, otp_code: otp, expires_at: expiresAt },
+            { onConflict: 'email' }
+        );
+
+    if (otpError) {
+        console.error('Error storing OTP for forgot password in DB:', otpError);
+        return res.status(500).json({ success: false, message: 'An error occurred while storing OTP.' });
+    }
+
+    try {
+        const emailTemplatePath = path.join(__dirname, '../../frontend', 'templates', 'forgot_password_otp_email.html');
+        let emailHtml = fs.readFileSync(emailTemplatePath, 'utf8');
+        emailHtml = emailHtml.replace('{{OTP_CODE}}', otp);
+
+        await transporter.sendMail({
+            from: '"Leirad Noznag" <darielganzon2003@gmail.com>',
+            to: email,
+            subject: 'Password Reset OTP',
+            html: emailHtml,
+            text: `Your One-Time Password (OTP) for password reset is: ${otp}. It is valid for 5 minutes. Do not share this with anyone.`,
         });
-    });
+        res.json({ success: true, message: 'Password reset OTP sent successfully to ' + email });
+    } catch (error) {
+        console.error('Error sending password reset email:', error);
+        res.status(500).json({ success: false, message: 'Failed to send password reset OTP. Mailer Error: ' + error.message });
+    }
 };
 
-exports.verifyOtpAndRegister = (req, res) => {
+exports.verifyOtpAndRegister = async (req, res) => {
     const { firstname, middlename, lastname, email, password, otp } = req.body;
 
     if (!firstname || !lastname || !email || !password || !otp) {
         return res.status(400).json({ success: false, message: 'All fields including OTP are required.' });
     }
 
-    const getOtpSql = "SELECT otp_code, expires_at FROM otps WHERE email = ?";
-    db.query(getOtpSql, [email], (err, otpResult) => {
-        if (err) {
-            console.error('Error retrieving OTP from DB:', err);
-            return res.status(500).json({ success: false, message: 'An error occurred during OTP verification.' });
+    // Get OTP from database
+    const { data: otps, error: otpError } = await supabase
+        .from('otps')
+        .select('otp_code, expires_at')
+        .eq('email', email);
+
+    if (otpError) {
+        console.error('Error retrieving OTP from DB:', otpError);
+        return res.status(500).json({ success: false, message: 'An error occurred during OTP verification.' });
+    }
+
+    if (otps.length === 0) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+    }
+
+    const storedOtp = otps[0];
+    const currentTime = new Date();
+
+    if (storedOtp.otp_code !== otp || currentTime > new Date(storedOtp.expires_at)) {
+        // Delete expired/invalid OTP
+        const { error: deleteError } = await supabase
+            .from('otps')
+            .delete()
+            .eq('email', email);
+
+        if (deleteError) console.error('Error deleting expired/invalid OTP:', deleteError);
+        return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+    }
+
+    // Check if email already exists
+    const { data: existingUsers, error: checkError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email);
+
+    if (checkError) {
+        console.error(checkError);
+        res.status(500).json({ success: false, message: 'An error occurred.' });
+        return;
+    }
+
+    if (existingUsers.length > 0) {
+        res.status(409).json({ success: false, message: 'Email already in use.' });
+        return;
+    }
+
+    bcrypt.hash(password, 10, async (hashErr, hashedPassword) => {
+        if (hashErr) {
+            console.error(hashErr);
+            res.status(500).json({ success: false, message: 'An error occurred during password hashing.' });
+            return;
         }
 
-        if (otpResult.length === 0) {
-            return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
-        }
-
-        const storedOtp = otpResult[0];
-        const currentTime = new Date();
-
-        if (storedOtp.otp_code !== otp || currentTime > storedOtp.expires_at) {
-            const deleteOtpSql = "DELETE FROM otps WHERE email = ?";
-            db.query(deleteOtpSql, [email], (deleteErr) => {
-                if (deleteErr) console.error('Error deleting expired/invalid OTP:', deleteErr);
-            });
-            return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
-        }
-
-        const checkEmailSql = "SELECT * FROM users WHERE email = ?";
-        db.query(checkEmailSql, [email], (err, result) => {
-            if (err) {
-                console.error(err);
-                res.status(500).json({ success: false, message: 'An error occurred.' });
-                return;
-            }
-            if (result.length > 0) {
-                res.status(409).json({ success: false, message: 'Email already in use.' });
-                return;
-            }
-
-            bcrypt.hash(password, 10, (hashErr, hashedPassword) => {
-                if (hashErr) {
-                    console.error(hashErr);
-                    res.status(500).json({ success: false, message: 'An error occurred during password hashing.' });
-                    return;
+        // Insert user
+        const { data: newUser, error: insertError } = await supabase
+            .from('users')
+            .insert([
+                {
+                    firstname: firstname,
+                    middlename: middlename,
+                    lastname: lastname,
+                    email: email,
+                    password: hashedPassword,
+                    profilePicture: 'images/default-profile.png'
                 }
+            ])
+            .select();
 
-                const insertSql = "INSERT INTO users (firstname, middlename, lastname, email, password, profilePicture) VALUES (?, ?, ?, ?, ?, ?)";
-                db.query(insertSql, [firstname, middlename, lastname, email, hashedPassword, 'images/default-profile.png'], (err, result) => {
-                    if (err) {
-                        console.error(err);
-                        res.status(500).json({ success: false, message: 'An error occurred.' });
-                        return;
-                    }
-                    const deleteOtpSql = "DELETE FROM otps WHERE email = ?";
-                    db.query(deleteOtpSql, [email], (deleteErr) => {
-                        if (deleteErr) console.error('Error deleting OTP after successful registration:', deleteErr);
-                    });
-                    const accessToken = jwt.sign({ id: result.insertId, email: email }, JWT_SECRET, { expiresIn: '1h' });
-                    res.json({ success: true, message: 'Registration successful!', token: accessToken });
-                });
-            });
-        });
+        if (insertError) {
+            console.error(insertError);
+            res.status(500).json({ success: false, message: 'An error occurred.' });
+            return;
+        }
+
+        // Delete OTP after successful registration
+        const { error: deleteError } = await supabase
+            .from('otps')
+            .delete()
+            .eq('email', email);
+
+        if (deleteError) console.error('Error deleting OTP after successful registration:', deleteError);
+
+        const accessToken = jwt.sign({ id: newUser[0].id, email: email }, JWT_SECRET, { expiresIn: '1h' });
+        res.json({ success: true, message: 'Registration successful!', token: accessToken });
     });
 };
 
-exports.verifyPasswordResetOtp = (req, res) => {
+exports.verifyPasswordResetOtp = async (req, res) => {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
         return res.status(400).json({ success: false, message: 'Email and OTP are required.' });
     }
 
-    const getOtpSql = `SELECT otp_code, expires_at FROM otps WHERE email = ?`;
-    db.query(getOtpSql, [email], (err, otpResult) => {
-        if (err) {
-            console.error('Error retrieving OTP for password reset from DB:', err);
-            return res.status(500).json({ success: false, message: 'An error occurred during OTP verification.' });
-        }
+    // Get OTP from database
+    const { data: otps, error: otpError } = await supabase
+        .from('otps')
+        .select('otp_code, expires_at')
+        .eq('email', email);
 
-        if (otpResult.length === 0) {
-            return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
-        }
+    if (otpError) {
+        console.error('Error retrieving OTP for password reset from DB:', otpError);
+        return res.status(500).json({ success: false, message: 'An error occurred during OTP verification.' });
+    }
 
-        const storedOtp = otpResult[0];
-        const currentTime = new Date();
+    if (otps.length === 0) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+    }
 
-        if (storedOtp.otp_code !== otp || currentTime > storedOtp.expires_at) {
-            return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
-        }
+    const storedOtp = otps[0];
+    const currentTime = new Date();
 
-        const deleteOtpSql = "DELETE FROM otps WHERE email = ?";
-        db.query(deleteOtpSql, [email], (deleteErr) => {
-            if (deleteErr) console.error('Error deleting OTP after successful verification:', deleteErr);
-        });
+    if (storedOtp.otp_code !== otp || currentTime > new Date(storedOtp.expires_at)) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+    }
 
-        res.json({ success: true, message: 'OTP verified successfully. You can now reset your password.' });
-    });
+    // Delete OTP after successful verification
+    const { error: deleteError } = await supabase
+        .from('otps')
+        .delete()
+        .eq('email', email);
+
+    if (deleteError) console.error('Error deleting OTP after successful verification:', deleteError);
+
+    res.json({ success: true, message: 'OTP verified successfully. You can now reset your password.' });
 };
 
-exports.resetPassword = (req, res) => {
+exports.resetPassword = async (req, res) => {
     const { email, newPassword, confirmNewPassword } = req.body;
 
     if (!email || !newPassword || !confirmNewPassword) {
@@ -224,82 +265,105 @@ exports.resetPassword = (req, res) => {
         return res.status(400).json({ success: false, message: 'New password and confirm password do not match.' });
     }
 
-    bcrypt.hash(newPassword, 10, (hashErr, hashedPassword) => {
+    bcrypt.hash(newPassword, 10, async (hashErr, hashedPassword) => {
         if (hashErr) {
             console.error(hashErr);
             res.status(500).json({ success: false, message: 'An error occurred during password hashing.' });
             return;
         }
 
-        const updatePasswordSql = "UPDATE users SET password = ? WHERE email = ?";
-        db.query(updatePasswordSql, [hashedPassword, email], (updateErr, updateResult) => {
-            if (updateErr) {
-                console.error('Error updating password:', updateErr);
-                return res.status(500).json({ success: false, message: 'An error occurred while resetting password.' });
-            }
-            if (updateResult.affectedRows === 0) {
-                return res.status(404).json({ success: false, message: 'User not found.' });
-            }
-            const clearTokenSql = "UPDATE users SET token = NULL WHERE email = ?";
-            db.query(clearTokenSql, [email], (clearTokenErr) => {
-                if (clearTokenErr) {
-                    console.error('Error clearing token after password reset:', clearTokenErr);
-                }
-                res.json({ success: true, message: 'Password has been reset successfully! Please log in with your new password.' });
-            });
-        });
+        // Update password
+        const { data, error: updateError } = await supabase
+            .from('users')
+            .update({ password: hashedPassword })
+            .eq('email', email);
+
+        if (updateError) {
+            console.error('Error updating password:', updateError);
+            return res.status(500).json({ success: false, message: 'An error occurred while resetting password.' });
+        }
+
+        if (data === null) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        // Clear token
+        const { error: clearTokenError } = await supabase
+            .from('users')
+            .update({ token: null })
+            .eq('email', email);
+
+        if (clearTokenError) {
+            console.error('Error clearing token after password reset:', clearTokenError);
+        }
+
+        res.json({ success: true, message: 'Password has been reset successfully! Please log in with your new password.' });
     });
 };
 
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
     const { email, password } = req.body;
-    const sql = "SELECT * FROM users WHERE BINARY email = ?";
-    db.query(sql, [email], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: 'An error occurred.' });
-        }
-        if (result.length > 0) {
-            const user = result[0];
-            bcrypt.compare(password, user.password, (compareErr, isMatch) => {
-                if (compareErr) {
-                    console.error(compareErr);
-                    return res.status(500).json({ success: false, message: 'An error occurred during password comparison.' });
-                }
-                if (isMatch) {
-                    const expiresIn = '1h';
-                    const accessToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn });
 
-                    const updateTokenSql = "UPDATE users SET token = ? WHERE id = ?";
-                    db.query(updateTokenSql, [accessToken, user.id], (updateErr) => {
-                        if (updateErr) {
-                            console.error('Error storing token in DB:', updateErr);
-                            return res.status(500).json({ success: false, message: 'An error occurred during login.' });
-                        }
-                        res.json({
-                            success: true,
-                            message: 'Login successful!',
-                            token: accessToken
-                        });
-                    });
-                } else {
-                    res.status(401).json({ success: false, message: 'Invalid credentials!' });
+    // Get user
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email);
+
+    if (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, message: 'An error occurred.' });
+    }
+
+    if (users.length > 0) {
+        const user = users[0];
+        bcrypt.compare(password, user.password, async (compareErr, isMatch) => {
+            if (compareErr) {
+                console.error(compareErr);
+                return res.status(500).json({ success: false, message: 'An error occurred during password comparison.' });
+            }
+            if (isMatch) {
+                const expiresIn = '1h';
+                const accessToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn });
+
+                // Update token
+                const { error: updateError } = await supabase
+                    .from('users')
+                    .update({ token: accessToken })
+                    .eq('id', user.id);
+
+                if (updateError) {
+                    console.error('Error storing token in DB:', updateError);
+                    return res.status(500).json({ success: false, message: 'An error occurred during login.' });
                 }
-            });
-        } else {
-            res.status(401).json({ success: false, message: 'Invalid credentials!' });
-        }
-    });
+
+                res.json({
+                    success: true,
+                    message: 'Login successful!',
+                    token: accessToken
+                });
+            } else {
+                res.status(401).json({ success: false, message: 'Invalid credentials!' });
+            }
+        });
+    } else {
+        res.status(401).json({ success: false, message: 'Invalid credentials!' });
+    }
 };
 
-exports.logout = (req, res) => {
+exports.logout = async (req, res) => {
     const userId = req.user.id;
-    const sql = "UPDATE users SET token = NULL WHERE id = ?";
-    db.query(sql, [userId], (err) => {
-        if (err) {
-            console.error('Error clearing token from DB on logout:', err);
-            return res.status(500).json({ success: false, message: 'An error occurred during logout.' });
-        }
-        res.json({ success: true, message: 'Logout successful!' });
-    });
+
+    // Clear token
+    const { error } = await supabase
+        .from('users')
+        .update({ token: null })
+        .eq('id', userId);
+
+    if (error) {
+        console.error('Error clearing token from DB on logout:', error);
+        return res.status(500).json({ success: false, message: 'An error occurred during logout.' });
+    }
+
+    res.json({ success: true, message: 'Logout successful!' });
 };
