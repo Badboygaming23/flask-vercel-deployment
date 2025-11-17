@@ -1,14 +1,6 @@
-// Determine the base URL based on the current environment
-const getBaseUrl = () => {
-    // For development, use localhost:5000
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://localhost:5000';
-    }
-    // For production, use the current domain
-    return window.location.origin;
-};
-
-const BASE_URL = getBaseUrl();
+// Import the base URL configuration
+const config = await import('./config.js');
+const BASE_URL = config.default.BASE_URL;
 
 $(document).ready(function() {
     if (!localStorage.getItem('authToken')) {
