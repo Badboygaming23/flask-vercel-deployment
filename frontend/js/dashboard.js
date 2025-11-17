@@ -274,15 +274,14 @@ $(document).ready(function() {
             {
                 data: 'image',
                 render: function(data, type, row) {
-                    // Use BASE_URL for default images to avoid mixed content issues
-                    // Ensure we're using the correct path format
+                    // Handle Supabase Storage URLs and local image paths
                     let imageUrl;
                     if (data) {
-                        // If data already includes BASE_URL, don't add it again
+                        // If data is already a full URL (Supabase Storage), use it as-is
                         if (data.startsWith('http')) {
                             imageUrl = data;
                         } else {
-                            // Otherwise, construct the full URL
+                            // Otherwise, construct the full URL using BASE_URL
                             imageUrl = `${BASE_URL}/${data}`;
                         }
                     } else {
@@ -291,17 +290,18 @@ $(document).ready(function() {
                     return `<img src="${imageUrl}" alt="Account Image" class="img-thumbnail" style="width: 50px; height: 50px; object-fit: cover;">`;
                 }
             },
+
             {
                 data: null,
                 render: function(data, type, row) {
-                    // Ensure we're using the correct path format for the edit button
+                    // Handle Supabase Storage URLs and local image paths for edit button
                     let imageAttribute;
                     if (row.image) {
-                        // If data already includes BASE_URL, don't add it again
+                        // If data is already a full URL (Supabase Storage), use it as-is
                         if (row.image.startsWith('http')) {
                             imageAttribute = row.image;
                         } else {
-                            // Otherwise, construct the full URL
+                            // Otherwise, construct the full URL using BASE_URL
                             imageAttribute = `${BASE_URL}/${row.image}`;
                         }
                     } else {
@@ -367,9 +367,13 @@ $(document).ready(function() {
         const password = $(this).data('password');
         const image = $(this).data('image');
         
-        // Strip BASE_URL prefix if present to get the relative path
+        // Handle Supabase Storage URLs and local image paths
         let relativeImagePath = image;
-        if (image && image.startsWith(BASE_URL)) {
+        if (image && image.startsWith('http')) {
+            // For Supabase Storage URLs, we store the full URL
+            relativeImagePath = image;
+        } else if (image && image.startsWith(BASE_URL)) {
+            // For local images with BASE_URL, extract the relative path
             relativeImagePath = image.substring(BASE_URL.length + 1); // +1 for the trailing slash
         }
 
@@ -377,8 +381,8 @@ $(document).ready(function() {
         $('#editSite').val(site);
         $('#editUsername').val(username);
         $('#editPassword').val(password);
-        $('#currentAccountImage').attr('src', image ? `${BASE_URL}/${relativeImagePath}` : `${BASE_URL}/images/default.png`).show();
-        // Store the current image path in a hidden field (relative path, not full URL)
+        $('#currentAccountImage').attr('src', image ? image : `${BASE_URL}/images/default.png`).show();
+        // Store the current image path in a hidden field
         $('#editAccountForm').data('currentImage', relativeImagePath);
     });
 
