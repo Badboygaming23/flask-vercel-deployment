@@ -16,22 +16,56 @@ exports.createAccount = async (req, res) => {
         // Check if we're running on Vercel
         if (process.env.VERCEL && req.file.path.startsWith('/tmp')) {
             // Move file from /tmp to images directory
-            const imagesDir = path.join(__dirname, '../../frontend/images');
+            console.log('Current __dirname:', __dirname);
+            
+            // Try multiple possible paths for Vercel deployment
+            let imagesDir = path.join(__dirname, '../../frontend/images');
+            console.log('Trying imagesDir:', imagesDir);
+            
+            // If the standard path doesn't work, try alternative paths
+            if (!fs.existsSync(path.join(__dirname, '../../frontend'))) {
+                console.log('Standard frontend path not found, trying alternative paths');
+                // Try without the extra ../
+                imagesDir = path.join(__dirname, '../frontend/images');
+                console.log('Trying alternative imagesDir:', imagesDir);
+                
+                // If that doesn't work, try with just frontend
+                if (!fs.existsSync(path.join(__dirname, '../frontend'))) {
+                    imagesDir = path.join(__dirname, 'frontend/images');
+                    console.log('Trying another alternative imagesDir:', imagesDir);
+                }
+            }
+            
             const targetPath = path.join(imagesDir, req.file.filename);
+            console.log('Calculated targetPath:', targetPath);
             
             // Ensure the target directory exists
+            console.log('Checking if directory exists:', imagesDir);
             if (!fs.existsSync(imagesDir)) {
-                fs.mkdirSync(imagesDir, { recursive: true });
+                console.log('Creating directory:', imagesDir);
+                try {
+                    fs.mkdirSync(imagesDir, { recursive: true });
+                    console.log('Directory created successfully');
+                } catch (mkdirError) {
+                    console.error('Error creating directory:', mkdirError);
+                    return res.status(500).json({ success: false, message: 'Error creating image directory. Please try again or contact support.' });
+                }
+            } else {
+                console.log('Directory already exists');
             }
             
             try {
+                console.log('Moving file from', req.file.path, 'to', targetPath);
                 fs.renameSync(req.file.path, targetPath);
+                console.log('File moved successfully');
             } catch (moveError) {
                 console.error('Error moving file:', moveError);
                 // If rename fails, try copy and delete
                 try {
+                    console.log('Attempting to copy file instead');
                     fs.copyFileSync(req.file.path, targetPath);
                     fs.unlinkSync(req.file.path);
+                    console.log('File copied and original deleted successfully');
                 } catch (copyError) {
                     console.error('Error copying file:', copyError);
                     return res.status(500).json({ success: false, message: 'Error processing uploaded file in create account. Please try again or contact support.' });
@@ -112,22 +146,56 @@ exports.updateAccount = async (req, res) => {
         // Check if we're running on Vercel
         if (process.env.VERCEL && req.file.path.startsWith('/tmp')) {
             // Move file from /tmp to images directory
-            const imagesDir = path.join(__dirname, '../../frontend/images');
+            console.log('Current __dirname:', __dirname);
+            
+            // Try multiple possible paths for Vercel deployment
+            let imagesDir = path.join(__dirname, '../../frontend/images');
+            console.log('Trying imagesDir:', imagesDir);
+            
+            // If the standard path doesn't work, try alternative paths
+            if (!fs.existsSync(path.join(__dirname, '../../frontend'))) {
+                console.log('Standard frontend path not found, trying alternative paths');
+                // Try without the extra ../
+                imagesDir = path.join(__dirname, '../frontend/images');
+                console.log('Trying alternative imagesDir:', imagesDir);
+                
+                // If that doesn't work, try with just frontend
+                if (!fs.existsSync(path.join(__dirname, '../frontend'))) {
+                    imagesDir = path.join(__dirname, 'frontend/images');
+                    console.log('Trying another alternative imagesDir:', imagesDir);
+                }
+            }
+            
             const targetPath = path.join(imagesDir, req.file.filename);
+            console.log('Calculated targetPath:', targetPath);
             
             // Ensure the target directory exists
+            console.log('Checking if directory exists:', imagesDir);
             if (!fs.existsSync(imagesDir)) {
-                fs.mkdirSync(imagesDir, { recursive: true });
+                console.log('Creating directory:', imagesDir);
+                try {
+                    fs.mkdirSync(imagesDir, { recursive: true });
+                    console.log('Directory created successfully');
+                } catch (mkdirError) {
+                    console.error('Error creating directory:', mkdirError);
+                    return res.status(500).json({ success: false, message: 'Error creating image directory. Please try again or contact support.' });
+                }
+            } else {
+                console.log('Directory already exists');
             }
             
             try {
+                console.log('Moving file from', req.file.path, 'to', targetPath);
                 fs.renameSync(req.file.path, targetPath);
+                console.log('File moved successfully');
             } catch (moveError) {
                 console.error('Error moving file:', moveError);
                 // If rename fails, try copy and delete
                 try {
+                    console.log('Attempting to copy file instead');
                     fs.copyFileSync(req.file.path, targetPath);
                     fs.unlinkSync(req.file.path);
+                    console.log('File copied and original deleted successfully');
                 } catch (copyError) {
                     console.error('Error copying file:', copyError);
                     return res.status(500).json({ success: false, message: 'Error processing uploaded file in update account. Please try again or contact support.' });
