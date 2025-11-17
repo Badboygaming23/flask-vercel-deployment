@@ -285,7 +285,7 @@ $(document).ready(function() {
                             imageUrl = `${BASE_URL}/${data}`;
                         }
                     } else {
-                        imageUrl = `${BASE_URL}/images/default.png`;
+                        imageUrl = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default.png';
                     }
                     return `<img src="${imageUrl}" alt="Account Image" class="img-thumbnail" style="width: 50px; height: 50px; object-fit: cover;">`;
                 }
@@ -305,7 +305,7 @@ $(document).ready(function() {
                             imageAttribute = `${BASE_URL}/${row.image}`;
                         }
                     } else {
-                        imageAttribute = `${BASE_URL}/images/default.png`;
+                        imageAttribute = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default.png';
                     }
                     
                     return `
@@ -346,7 +346,7 @@ $(document).ready(function() {
         if (imageFile) {
             formData.append('image', imageFile);
         } else {
-            formData.append('image', 'images/default.png'); 
+            formData.append('image', 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default.png'); 
         }
 
         const data = await fetchData(`${BASE_URL}/accounts`, 'POST', formData, true);
@@ -381,7 +381,7 @@ $(document).ready(function() {
         $('#editSite').val(site);
         $('#editUsername').val(username);
         $('#editPassword').val(password);
-        $('#currentAccountImage').attr('src', image ? image : `${BASE_URL}/images/default.png`).show();
+        $('#currentAccountImage').attr('src', image ? image : 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default.png').show();
         // Store the current image path in a hidden field
         $('#editAccountForm').data('currentImage', relativeImagePath);
     });
@@ -554,7 +554,7 @@ $(document).ready(function() {
         if (data && data.success && data.profilepicture) {
             $('#userProfilePicture').attr('src', data.profilepicture);
         } else {
-            $('#userProfilePicture').attr('src', 'images/default-profile.png');
+            $('#userProfilePicture').attr('src', 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png');
         }
     };
     loadUserProfilePicture();

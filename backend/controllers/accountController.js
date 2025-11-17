@@ -204,7 +204,7 @@ exports.updateAccount = async (req, res) => {
         } catch (fileReadError) {
             console.error('Error reading file for Supabase upload:', fileReadError);
         }
-    } else if (req.body.image === 'images/default.png') {
+    } else if (req.body.image === 'images/default.png' || req.body.image === 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default.png') {
         // If user explicitly selected default image, use it
         imagePath = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default.png';
         

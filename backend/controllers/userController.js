@@ -15,7 +15,7 @@ exports.getUserInfo = async (req, res) => {
         .eq('id', userId);
 
     if (error) {
-        console.error(error);
+        console.error('Error in getUserInfo:', error);
         return res.status(500).json({ success: false, message: 'An error occurred.' });
     }
 
@@ -23,7 +23,7 @@ exports.getUserInfo = async (req, res) => {
         const user = users[0];
         // Ensure profilePicture has a default value if null
         if (!user.profilePicture) {
-            user.profilePicture = 'images/default-profile.png';
+            user.profilePicture = 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png';
         }
         
         // For Supabase Storage URLs, return as-is since they're already full URLs
@@ -189,7 +189,7 @@ exports.getProfilePicture = async (req, res) => {
         .eq('id', userId);
 
     if (error) {
-        console.error(error);
+        console.error('Error in getProfilePicture:', error);
         return res.status(500).json({ success: false, message: 'An error occurred.' });
     }
 

@@ -217,7 +217,7 @@ exports.verifyOtpAndRegister = async (req, res) => {
                     lastname: lastname,
                     email: email,
                     password: hashedPassword,
-                    profilepicture: 'images/default-profile.png'
+                    profilepicture: 'https://nttadnyxpbuwuhgtpvjh.supabase.co/storage/v1/object/public/images/default-profile.png'
                 }
             ])
             .select();
