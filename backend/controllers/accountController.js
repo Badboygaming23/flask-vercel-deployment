@@ -3,6 +3,31 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
 
+// Helper function to determine the correct images directory path
+const getImagesDirectory = (baseDir) => {
+    console.log('Getting images directory from baseDir:', baseDir);
+    
+    // Try multiple possible paths for Vercel deployment
+    let imagesDir = path.join(baseDir, '../../frontend/images');
+    console.log('Trying imagesDir:', imagesDir);
+    
+    // If the standard path doesn't work, try alternative paths
+    if (!fs.existsSync(path.join(baseDir, '../../frontend'))) {
+        console.log('Standard frontend path not found, trying alternative paths');
+        // Try without the extra ../
+        imagesDir = path.join(baseDir, '../frontend/images');
+        console.log('Trying alternative imagesDir:', imagesDir);
+        
+        // If that doesn't work, try with just frontend
+        if (!fs.existsSync(path.join(baseDir, '../frontend'))) {
+            imagesDir = path.join(baseDir, 'frontend/images');
+            console.log('Trying another alternative imagesDir:', imagesDir);
+        }
+    }
+    
+    return imagesDir;
+};
+
 exports.createAccount = async (req, res) => {
     const { site, username, password } = req.body;
     const userId = req.user.id;
@@ -17,25 +42,7 @@ exports.createAccount = async (req, res) => {
         if (process.env.VERCEL && req.file.path.startsWith('/tmp')) {
             // Move file from /tmp to images directory
             console.log('Current __dirname:', __dirname);
-            
-            // Try multiple possible paths for Vercel deployment
-            let imagesDir = path.join(__dirname, '../../frontend/images');
-            console.log('Trying imagesDir:', imagesDir);
-            
-            // If the standard path doesn't work, try alternative paths
-            if (!fs.existsSync(path.join(__dirname, '../../frontend'))) {
-                console.log('Standard frontend path not found, trying alternative paths');
-                // Try without the extra ../
-                imagesDir = path.join(__dirname, '../frontend/images');
-                console.log('Trying alternative imagesDir:', imagesDir);
-                
-                // If that doesn't work, try with just frontend
-                if (!fs.existsSync(path.join(__dirname, '../frontend'))) {
-                    imagesDir = path.join(__dirname, 'frontend/images');
-                    console.log('Trying another alternative imagesDir:', imagesDir);
-                }
-            }
-            
+            const imagesDir = getImagesDirectory(__dirname);
             const targetPath = path.join(imagesDir, req.file.filename);
             console.log('Calculated targetPath:', targetPath);
             
@@ -93,9 +100,11 @@ exports.createAccount = async (req, res) => {
     if (error) {
         console.error(error);
         if (req.file) {
-            const filePath = process.env.VERCEL && req.file.path.startsWith('/tmp') ? 
-                path.join(__dirname, '../../frontend/images', req.file.filename) : 
-                req.file.path;
+            let filePath = req.file.path;
+            if (process.env.VERCEL && req.file.path.startsWith('/tmp')) {
+                const imagesDir = getImagesDirectory(__dirname);
+                filePath = path.join(imagesDir, req.file.filename);
+            }
             fs.unlink(filePath, (unlinkErr) => {
                 if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
             });
@@ -147,25 +156,7 @@ exports.updateAccount = async (req, res) => {
         if (process.env.VERCEL && req.file.path.startsWith('/tmp')) {
             // Move file from /tmp to images directory
             console.log('Current __dirname:', __dirname);
-            
-            // Try multiple possible paths for Vercel deployment
-            let imagesDir = path.join(__dirname, '../../frontend/images');
-            console.log('Trying imagesDir:', imagesDir);
-            
-            // If the standard path doesn't work, try alternative paths
-            if (!fs.existsSync(path.join(__dirname, '../../frontend'))) {
-                console.log('Standard frontend path not found, trying alternative paths');
-                // Try without the extra ../
-                imagesDir = path.join(__dirname, '../frontend/images');
-                console.log('Trying alternative imagesDir:', imagesDir);
-                
-                // If that doesn't work, try with just frontend
-                if (!fs.existsSync(path.join(__dirname, '../frontend'))) {
-                    imagesDir = path.join(__dirname, 'frontend/images');
-                    console.log('Trying another alternative imagesDir:', imagesDir);
-                }
-            }
-            
+            const imagesDir = getImagesDirectory(__dirname);
             const targetPath = path.join(imagesDir, req.file.filename);
             console.log('Calculated targetPath:', targetPath);
             
@@ -219,9 +210,11 @@ exports.updateAccount = async (req, res) => {
     if (error) {
         console.error(error);
         if (req.file) {
-            const filePath = process.env.VERCEL && req.file.path.startsWith('/tmp') ? 
-                path.join(__dirname, '../../frontend/images', req.file.filename) : 
-                req.file.path;
+            let filePath = req.file.path;
+            if (process.env.VERCEL && req.file.path.startsWith('/tmp')) {
+                const imagesDir = getImagesDirectory(__dirname);
+                filePath = path.join(imagesDir, req.file.filename);
+            }
             fs.unlink(filePath, (unlinkErr) => {
                 if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
             });
@@ -232,9 +225,11 @@ exports.updateAccount = async (req, res) => {
     // Check if no rows were affected (account not found or not owned by user)
     if (data && data.length === 0) {
         if (req.file) {
-            const filePath = process.env.VERCEL && req.file.path.startsWith('/tmp') ? 
-                path.join(__dirname, '../../frontend/images', req.file.filename) : 
-                req.file.path;
+            let filePath = req.file.path;
+            if (process.env.VERCEL && req.file.path.startsWith('/tmp')) {
+                const imagesDir = getImagesDirectory(__dirname);
+                filePath = path.join(imagesDir, req.file.filename);
+            }
             fs.unlink(filePath, (unlinkErr) => {
                 if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
             });
