@@ -4,9 +4,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, BASE_URL } = require('../config/config');
-// Removed Vercel Blob import as we're using local file storage
-
-// Removed getImagesDirectory helper function as we're using direct file paths
+const { uploadFileToSupabase, deleteFileFromSupabase } = require('../utils/supabaseStorage');
 
 exports.getUserInfo = async (req, res) => {
     const userId = req.user.id;
@@ -69,32 +67,35 @@ exports.uploadProfilePicture = async (req, res) => {
         return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
-    let profilepicturePath = `/images/${req.file.filename}`;
+    let profilepicturePath = '/images/default-profile.png';
     
-    // For Vercel deployments, we need to move the file from /tmp to the images directory
-    if (process.env.VERCEL) {
-        const filename = req.file.filename;
-        const tmpPath = `/tmp/${filename}`;
-        const targetPath = path.join(__dirname, '../../frontend/images', filename);
+    // Upload file to Supabase Storage
+    try {
+        const fileBuffer = fs.readFileSync(req.file.path || path.join(__dirname, '../../frontend/images', req.file.filename));
+        const fileName = `profile-pictures/${req.file.filename}`;
         
-        try {
-            // Ensure the target directory exists
-            const targetDir = path.join(__dirname, '../../frontend/images');
-            if (!fs.existsSync(targetDir)) {
-                fs.mkdirSync(targetDir, { recursive: true });
-            }
-            
-            // Move the file from /tmp to images directory
-            fs.renameSync(tmpPath, targetPath);
-            console.log(`Moved profile picture from ${tmpPath} to ${targetPath}`);
-            
-            // Set the profile picture path to be relative to the frontend directory
-            profilepicturePath = `/images/${filename}`;
-        } catch (moveError) {
-            console.error('Error moving profile picture:', moveError);
-            // If we can't move the file, fall back to default
+        const { publicUrl, error } = await uploadFileToSupabase(fileBuffer, fileName);
+        
+        if (error) {
+            console.error('Error uploading profile picture to Supabase Storage:', error);
+            // Fall back to default image if upload fails
             profilepicturePath = '/images/default-profile.png';
+        } else {
+            profilepicturePath = publicUrl;
         }
+        
+        // Clean up local file if it exists
+        try {
+            const localFilePath = req.file.path || path.join(__dirname, '../../frontend/images', req.file.filename);
+            if (fs.existsSync(localFilePath)) {
+                fs.unlinkSync(localFilePath);
+            }
+        } catch (cleanupError) {
+            console.error('Error cleaning up local file:', cleanupError);
+        }
+    } catch (fileReadError) {
+        console.error('Error reading file for Supabase upload:', fileReadError);
+        profilepicturePath = '/images/default-profile.png';
     }
 
     const { data, error } = await supabase
@@ -104,43 +105,29 @@ exports.uploadProfilePicture = async (req, res) => {
 
     if (error) {
         console.error('Error updating profile picture in DB:', error);
-        // Delete the file if there was an error
-        if (process.env.VERCEL) {
-            const filename = req.file.filename;
-            const targetPath = path.join(__dirname, '../../frontend/images', filename);
-            fs.unlink(targetPath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        } else {
-            const filePath = path.join(__dirname, '../../frontend/images', req.file.filename);
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
+        // If there was an error, try to delete the uploaded file from Supabase
+        if (profilepicturePath.startsWith('http')) {
+            const urlParts = profilepicturePath.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const filePath = `profile-pictures/${fileName}`;
+            await deleteFileFromSupabase(filePath);
         }
         return res.status(500).json({ success: false, message: 'Error saving profile picture.' });
     }
 
     // Check if no rows were affected (user not found or not owned by user)
     if (data && data.length === 0) {
-        // Delete the file if user not found
-        if (process.env.VERCEL) {
-            const filename = req.file.filename;
-            const targetPath = path.join(__dirname, '../../frontend/images', filename);
-            fs.unlink(targetPath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        } else {
-            const filePath = path.join(__dirname, '../../frontend/images', req.file.filename);
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
+        // If there was an error, try to delete the uploaded file from Supabase
+        if (profilepicturePath.startsWith('http')) {
+            const urlParts = profilepicturePath.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const filePath = `profile-pictures/${fileName}`;
+            await deleteFileFromSupabase(filePath);
         }
         return res.status(404).json({ success: false, message: 'User not found or you do not have permission to update profile picture.' });
     }
 
-    // For local images, construct full URL
-    const fullProfilePicturePath = `${BASE_URL}${profilepicturePath.replace(/\\/g, '/')}`;
-    res.json({ success: true, message: 'Profile picture updated successfully!', profilepicture: fullProfilePicturePath });
+    res.json({ success: true, message: 'Profile picture updated successfully!', profilepicture: profilepicturePath });
 };
 
 exports.getProfilePicture = async (req, res) => {
@@ -159,43 +146,8 @@ exports.getProfilePicture = async (req, res) => {
     if (users.length > 0) {
         let profilepicture = users[0].profilePicture;
         
-        // For Vercel deployments, we need to ensure files exist in the images directory
-        // But skip this for default images
-        if (process.env.VERCEL && profilepicture && profilepicture.startsWith('/images/') && profilepicture.includes('-') && profilepicture !== '/images/default-profile.png') {
-            // Extract filename from the path
-            const filename = profilepicture.replace('/images/', '');
-            const tmpPath = `/tmp/${filename}`;
-            
-            // Check if the file exists in /tmp and move it
-            if (fs.existsSync(tmpPath)) {
-                try {
-                    // Ensure the target directory exists
-                    const targetDir = path.join(__dirname, '../../frontend/images');
-                    if (!fs.existsSync(targetDir)) {
-                        fs.mkdirSync(targetDir, { recursive: true });
-                    }
-                    
-                    // Move the file from /tmp to images directory
-                    const targetPath = path.join(__dirname, '../../frontend/images', filename);
-                    fs.renameSync(tmpPath, targetPath);
-                    console.log(`Moved profile picture from ${tmpPath} to ${targetPath}`);
-                    
-                    // Update the user profile picture path in database
-                    profilepicture = `/images/${filename}`;
-                    
-                    // Update the database with the new path
-                    await supabase
-                        .from('users')
-                        .update({ profilePicture: profilepicture })
-                        .eq('id', userId);
-                } catch (moveError) {
-                    console.error('Error moving profile picture:', moveError);
-                    // If we can't move the file, keep the original path
-                }
-            }
-        }
-        
-        // For static images, return relative path
+        // For Supabase Storage URLs, return as-is since they're already full URLs
+        // For local images, return relative path
         if (profilepicture && !profilepicture.startsWith('http')) {
             profilepicture = profilepicture.replace(/\\/g, '/');
         }

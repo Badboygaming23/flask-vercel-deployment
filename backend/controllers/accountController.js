@@ -2,9 +2,7 @@ const supabase = require('../db');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
-// Removed Vercel Blob import as we're using local file storage
-
-// Removed getImagesDirectory helper function as we're using direct file paths
+const { uploadFileToSupabase, deleteFileFromSupabase } = require('../utils/supabaseStorage');
 
 exports.createAccount = async (req, res) => {
     const { site, username, password } = req.body;
@@ -16,39 +14,34 @@ exports.createAccount = async (req, res) => {
 
     let imagePath = 'images/default.png';
     if (req.file) {
-        // For Vercel deployments, files are stored in /tmp and need to be moved
-        // For local development, files are already in the correct location
-        if (process.env.VERCEL) {
-            // On Vercel, we need to move the file from /tmp to the images directory
-            // and then reference it correctly
-            const filename = req.file.filename;
-            const tmpPath = `/tmp/${filename}`;
-            const targetPath = path.join(__dirname, '../../frontend/images', filename);
+        // Upload file to Supabase Storage
+        try {
+            const fileBuffer = fs.readFileSync(req.file.path || path.join(__dirname, '../../frontend/images', req.file.filename));
+            const fileName = `accounts/${req.file.filename}`;
             
-            try {
-                // Ensure the target directory exists
-                const targetDir = path.join(__dirname, '../../frontend/images');
-                if (!fs.existsSync(targetDir)) {
-                    fs.mkdirSync(targetDir, { recursive: true });
-                }
-                
-                // Move the file from /tmp to images directory
-                fs.renameSync(tmpPath, targetPath);
-                console.log(`Moved file from ${tmpPath} to ${targetPath}`);
-                
-                // Set the image path to be relative to the frontend directory
-                imagePath = `images/${filename}`;
-            } catch (moveError) {
-                console.error('Error moving file:', moveError);
-                // If we can't move the file, fall back to default
+            const { publicUrl, error } = await uploadFileToSupabase(fileBuffer, fileName);
+            
+            if (error) {
+                console.error('Error uploading file to Supabase Storage:', error);
+                // Fall back to default image if upload fails
                 imagePath = 'images/default.png';
+            } else {
+                imagePath = publicUrl;
             }
-        } else {
-            // For local development, the file is already in the correct directory
-            imagePath = `images/${req.file.filename}`;
+            
+            // Clean up local file if it exists
+            try {
+                const localFilePath = req.file.path || path.join(__dirname, '../../frontend/images', req.file.filename);
+                if (fs.existsSync(localFilePath)) {
+                    fs.unlinkSync(localFilePath);
+                }
+            } catch (cleanupError) {
+                console.error('Error cleaning up local file:', cleanupError);
+            }
+        } catch (fileReadError) {
+            console.error('Error reading file for Supabase upload:', fileReadError);
+            imagePath = 'images/default.png';
         }
-    } else if (req.body.image === 'images/default.png') {
-        imagePath = 'images/default.png';
     }
 
     // Log the image path for debugging
@@ -69,19 +62,10 @@ exports.createAccount = async (req, res) => {
 
     if (error) {
         console.error(error);
-        if (req.file && process.env.VERCEL) {
-            // Delete the file if there was an error (only for Vercel)
-            const filename = req.file.filename;
-            const targetPath = path.join(__dirname, '../../frontend/images', filename);
-            fs.unlink(targetPath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        } else if (req.file && !process.env.VERCEL) {
-            // Delete the file if there was an error (only for local development)
-            const filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
+        // If there was an error and we uploaded a file, try to delete it from Supabase
+        if (req.file && imagePath.startsWith('http')) {
+            const fileName = `accounts/${req.file.filename}`;
+            await deleteFileFromSupabase(fileName);
         }
         return res.status(500).json({ success: false, message: 'Error creating account.' });
     }
@@ -109,39 +93,9 @@ exports.getAccounts = async (req, res) => {
     // Process accounts to handle image paths correctly
     const accountsWithFullImageUrls = accounts.map(account => {
         if (account.image) {
-            // For Vercel deployments, we need to ensure files exist in the images directory
-            // But skip this for default images
-            if (process.env.VERCEL && account.image.startsWith('images/') && account.image.includes('-') && account.image !== 'images/default.png') {
-                // This is a temporary file that needs to be moved
-                const filename = account.image.replace('images/', '');
-                const tmpPath = `/tmp/${filename}`;
-                // targetPath will be set later with proper path resolution
-                
-                // Check if the file exists in /tmp and move it
-                if (fs.existsSync(tmpPath)) {
-                    try {
-                        // Ensure the target directory exists
-                        const targetDir = path.join(__dirname, '../../frontend/images');
-                        if (!fs.existsSync(targetDir)) {
-                            fs.mkdirSync(targetDir, { recursive: true });
-                        }
-                        
-                        // Move the file from /tmp to images directory
-                        const targetPath = path.join(__dirname, '../../frontend/images', filename);
-                        fs.renameSync(tmpPath, targetPath);
-                        console.log(`Moved file from ${tmpPath} to ${targetPath}`);
-                        
-                        // Update the account image path
-                        account.image = `images/${filename}`;
-                    } catch (moveError) {
-                        console.error('Error moving file:', moveError);
-                        // If we can't move the file, keep the original path
-                    }
-                }
-            }
-            
-            // For static images, return relative path
-            if (!account.image.startsWith('http')) {
+            // For Supabase Storage URLs, return as-is since they're already full URLs
+            // For local images or default images, return relative path
+            if (!account.image.startsWith('http') && account.image !== 'images/default.png') {
                 account.image = account.image.replace(/\\/g, '/');
             }
         }
@@ -166,35 +120,40 @@ exports.updateAccount = async (req, res) => {
 
     let imagePath = req.body.currentImage;
     if (req.file) {
-        // For Vercel deployments, files are stored in /tmp and need to be moved
-        // For local development, files are already in the correct location
-        if (process.env.VERCEL) {
-            // On Vercel, we need to move the file from /tmp to the images directory
-            // and then reference it correctly
-            const filename = req.file.filename;
-            const tmpPath = `/tmp/${filename}`;
-            const targetPath = path.join(__dirname, '../../frontend/images', filename);
+        // Upload new file to Supabase Storage
+        try {
+            const fileBuffer = fs.readFileSync(req.file.path || path.join(__dirname, '../../frontend/images', req.file.filename));
+            const fileName = `accounts/${req.file.filename}`;
             
-            try {
-                // Ensure the target directory exists
-                const targetDir = path.join(__dirname, '../../frontend/images');
-                if (!fs.existsSync(targetDir)) {
-                    fs.mkdirSync(targetDir, { recursive: true });
-                }
-                
-                // Move the file from /tmp to images directory
-                fs.renameSync(tmpPath, targetPath);
-                console.log(`Moved file from ${tmpPath} to ${targetPath}`);
-                
-                // Set the image path to be relative to the frontend directory
-                imagePath = `images/${filename}`;
-            } catch (moveError) {
-                console.error('Error moving file:', moveError);
-                // If we can't move the file, keep the current image
+            // If there was a previous image, try to delete it from Supabase Storage
+            if (imagePath && imagePath.startsWith('http')) {
+                // Extract the file name from the URL
+                const urlParts = imagePath.split('/');
+                const oldFileName = urlParts[urlParts.length - 1];
+                const oldFilePath = `accounts/${oldFileName}`;
+                await deleteFileFromSupabase(oldFilePath);
             }
-        } else {
-            // For local development, the file is already in the correct directory
-            imagePath = `images/${req.file.filename}`;
+            
+            const { publicUrl, error } = await uploadFileToSupabase(fileBuffer, fileName);
+            
+            if (error) {
+                console.error('Error uploading file to Supabase Storage:', error);
+                // Keep the current image if upload fails
+            } else {
+                imagePath = publicUrl;
+            }
+            
+            // Clean up local file if it exists
+            try {
+                const localFilePath = req.file.path || path.join(__dirname, '../../frontend/images', req.file.filename);
+                if (fs.existsSync(localFilePath)) {
+                    fs.unlinkSync(localFilePath);
+                }
+            } catch (cleanupError) {
+                console.error('Error cleaning up local file:', cleanupError);
+            }
+        } catch (fileReadError) {
+            console.error('Error reading file for Supabase upload:', fileReadError);
         }
     }
 
@@ -214,38 +173,17 @@ exports.updateAccount = async (req, res) => {
 
     if (error) {
         console.error(error);
-        if (req.file && process.env.VERCEL) {
-            // Delete the file if there was an error (only for Vercel)
-            const filename = req.file.filename;
-            const targetPath = path.join(__dirname, '../../frontend/images', filename);
-            fs.unlink(targetPath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        } else if (req.file && !process.env.VERCEL) {
-            // Delete the file if there was an error (only for local development)
-            const filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        }
         return res.status(500).json({ success: false, message: 'Error updating account.' });
     }
 
     // Check if no rows were affected (account not found or not owned by user)
     if (data && data.length === 0) {
-        if (req.file && process.env.VERCEL) {
-            // Delete the file if account not found (only for Vercel)
-            const filename = req.file.filename;
-            const targetPath = path.join(__dirname, '../../frontend/images', filename);
-            fs.unlink(targetPath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
-        } else if (req.file && !process.env.VERCEL) {
-            // Delete the file if account not found (only for local development)
-            const filePath = `C:\\xampp\\htdocs\\fullstack express final backup\\fullstack\\frontend\\images/${req.file.filename}`;
-            fs.unlink(filePath, (unlinkErr) => {
-                if (unlinkErr) console.error('Error deleting uploaded file:', unlinkErr);
-            });
+        // If we uploaded a new file but the update failed, try to delete the uploaded file
+        if (req.file && imagePath && imagePath.startsWith('http')) {
+            const urlParts = imagePath.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const filePath = `accounts/${fileName}`;
+            await deleteFileFromSupabase(filePath);
         }
         return res.status(404).json({ success: false, message: 'Account not found or you do not have permission to update it.' });
     }

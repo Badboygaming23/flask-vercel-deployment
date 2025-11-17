@@ -3,17 +3,16 @@ const path = require('path');
 const fs = require('fs');
 
 // Use environment-specific storage configuration
-// For Vercel deployments, we'll use the /tmp directory
-// For local development, we'll use the frontend/images directory
+// For Supabase Storage, we'll temporarily store files in /tmp directory
+// For local development, we'll also use /tmp and then upload to Supabase
 const storage = multer.diskStorage({
         destination: function (req, file, cb) {
-            // Use /tmp directory for Vercel deployments, local directory for development
-            let uploadDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, '../../frontend/images');
-            // Ensure the target directory exists (only for local development)
-            if (!process.env.VERCEL && !fs.existsSync(uploadDir)) {
+            // Use /tmp directory for all environments since we'll upload to Supabase Storage
+            let uploadDir = '/tmp';
+            // Ensure the /tmp directory exists
+            if (!fs.existsSync(uploadDir)) {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
-            // For Vercel, the /tmp directory always exists
             cb(null, uploadDir);
         },
         filename: function (req, file, cb) {
