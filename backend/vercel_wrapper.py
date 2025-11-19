@@ -18,10 +18,35 @@ def handler(event, context):
         # Process the request through Flask using the WSGI interface
         response = Response.from_app(app, environ)
         
+        # Ensure CORS headers are properly set
+        headers = dict(response.headers)
+        
+        # Add CORS headers if they're not already present
+        if 'Access-Control-Allow-Origin' not in headers:
+            origin = environ.get('HTTP_ORIGIN', '')
+            allowed_origins = [
+                'http://127.0.0.1:5500',
+                'http://localhost:5500',
+                'https://flask-vercel-deployment-amber.vercel.app'
+            ]
+            
+            if origin in allowed_origins:
+                headers['Access-Control-Allow-Origin'] = origin
+            
+        # Add other necessary CORS headers
+        if 'Access-Control-Allow-Methods' not in headers:
+            headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            
+        if 'Access-Control-Allow-Headers' not in headers:
+            headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+            
+        if 'Access-Control-Allow-Credentials' not in headers:
+            headers['Access-Control-Allow-Credentials'] = 'true'
+
         # Convert Flask response to Vercel format
         return {
             'statusCode': response.status_code,
-            'headers': dict(response.headers),
+            'headers': headers,
             'body': response.get_data(as_text=True)
         }
     except Exception as e:
@@ -33,7 +58,13 @@ def handler(event, context):
         # Return a proper error response
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': 'http://127.0.0.1:5500',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                'Access-Control-Allow-Credentials': 'true'
+            },
             'body': json.dumps({
                 'error': 'Internal Server Error',
                 'message': str(e)

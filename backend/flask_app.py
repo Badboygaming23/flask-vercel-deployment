@@ -40,6 +40,17 @@ except Exception as e:
     logger.error(f"Failed to initialize Supabase client: {str(e)}")
     supabase = None
 
+# Handle CORS preflight requests
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = jsonify()
+        response.headers.add("Access-Control-Allow-Origin", request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With")
+        response.headers.add('Access-Control-Allow-Methods', "GET, POST, PUT, DELETE, OPTIONS")
+        response.headers.add('Access-Control-Allow-Credentials', "true")
+        return response
+
 # Serve static files from the frontend directory
 @app.route('/')
 def index():
