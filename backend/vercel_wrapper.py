@@ -18,37 +18,10 @@ def handler(event, context):
         from werkzeug.wrappers import Response
         response = Response.from_app(app, environ)
         
-        # Ensure CORS headers are properly set
-        headers = dict(response.headers)
-        
-        # Add CORS headers if they're not already present
-        origin = environ.get('HTTP_ORIGIN', '')
-        allowed_origins = [
-            'http://127.0.0.1:5500',
-            'http://localhost:5500',
-            'https://flask-vercel-deployment-ten.vercel.app'
-        ]
-        
-        if 'Access-Control-Allow-Origin' not in headers:
-            if origin in allowed_origins:
-                headers['Access-Control-Allow-Origin'] = origin
-            else:
-                headers['Access-Control-Allow-Origin'] = '*'
-            
-        # Add other necessary CORS headers
-        if 'Access-Control-Allow-Methods' not in headers:
-            headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-            
-        if 'Access-Control-Allow-Headers' not in headers:
-            headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
-            
-        if 'Access-Control-Allow-Credentials' not in headers:
-            headers['Access-Control-Allow-Credentials'] = 'true'
-
         # Convert Flask response to Vercel format
         return {
             'statusCode': response.status_code,
-            'headers': headers,
+            'headers': dict(response.headers),
             'body': response.get_data(as_text=True)
         }
     except Exception as e:
@@ -57,52 +30,15 @@ def handler(event, context):
         import traceback
         traceback.print_exc()
         
-        # Return a simple error response with CORS headers
-        try:
-            origin = ''
-            if isinstance(event, dict) and 'headers' in event and isinstance(event['headers'], dict):
-                origin = event['headers'].get('origin', '')
-            
-            allowed_origins = [
-                'http://127.0.0.1:5500',
-                'http://localhost:5500',
-                'https://flask-vercel-deployment-ten.vercel.app'
-            ]
-            
-            cors_origin = '*'
-            if origin in allowed_origins:
-                cors_origin = origin
-                
-            return {
-                'statusCode': 500,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': cors_origin,
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-                    'Access-Control-Allow-Credentials': 'true'
-                },
-                'body': json.dumps({
-                    'error': 'Internal Server Error',
-                    'message': 'An unexpected error occurred'
-                })
-            }
-        except Exception as inner_e:
-            # If we can't even create an error response, return a minimal one
-            return {
-                'statusCode': 500,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-                    'Access-Control-Allow-Credentials': 'true'
-                },
-                'body': json.dumps({
-                    'error': 'Internal Server Error',
-                    'message': 'An unexpected error occurred'
-                })
-            }
+        # Return a simple error response
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({
+                'error': 'Internal Server Error',
+                'message': str(e) if len(str(e)) < 100 else 'An unexpected error occurred'
+            })
+        }
 
 def create_wsgi_environ(event, context):
     """Create a WSGI environ dict from Vercel event"""

@@ -14,16 +14,8 @@ from config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Enable CORS with specific configuration for our use case
-CORS(app, 
-     origins=[
-         "http://127.0.0.1:5500",
-         "http://localhost:5500",
-         "https://flask-vercel-deployment-ten.vercel.app"
-     ],
-     supports_credentials=True,
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "X-Requested-With"])
+# Enable CORS
+CORS(app)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -42,41 +34,10 @@ except Exception as e:
 def handle_preflight():
     if request.method == "OPTIONS":
         response = jsonify()
-        origin = request.headers.get('Origin', '')
-        allowed_origins = [
-            'http://127.0.0.1:5500',
-            'http://localhost:5500',
-            'https://flask-vercel-deployment-ten.vercel.app'
-        ]
-        
-        if origin in allowed_origins:
-            response.headers.add("Access-Control-Allow-Origin", origin)
-        else:
-            response.headers.add("Access-Control-Allow-Origin", "*")
-            
+        response.headers.add("Access-Control-Allow-Origin", "*")
         response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With")
         response.headers.add('Access-Control-Allow-Methods', "GET, POST, PUT, DELETE, OPTIONS")
-        response.headers.add('Access-Control-Allow-Credentials', "true")
         return response
-
-# Add after_request handler to ensure CORS headers are added to all responses
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin', '')
-    allowed_origins = [
-        'http://127.0.0.1:5500',
-        'http://localhost:5500',
-        'https://flask-vercel-deployment-ten.vercel.app'
-    ]
-    
-    if origin in allowed_origins:
-        response.headers.add("Access-Control-Allow-Origin", origin)
-    # Don't add the header if it's already present to avoid duplicates
-    elif "Access-Control-Allow-Origin" not in response.headers:
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        
-    response.headers.add('Access-Control-Allow-Credentials', "true")
-    return response
 
 # Serve static files from the frontend directory
 @app.route('/')
