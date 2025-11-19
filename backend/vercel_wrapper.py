@@ -22,16 +22,18 @@ def handler(event, context):
         headers = dict(response.headers)
         
         # Add CORS headers if they're not already present
+        origin = environ.get('HTTP_ORIGIN', '')
+        allowed_origins = [
+            'http://127.0.0.1:5500',
+            'http://localhost:5500',
+            'https://flask-vercel-deployment-amber.vercel.app'
+        ]
+        
         if 'Access-Control-Allow-Origin' not in headers:
-            origin = environ.get('HTTP_ORIGIN', '')
-            allowed_origins = [
-                'http://127.0.0.1:5500',
-                'http://localhost:5500',
-                'https://flask-vercel-deployment-amber.vercel.app'
-            ]
-            
             if origin in allowed_origins:
                 headers['Access-Control-Allow-Origin'] = origin
+            else:
+                headers['Access-Control-Allow-Origin'] = '*'
             
         # Add other necessary CORS headers
         if 'Access-Control-Allow-Methods' not in headers:
@@ -55,12 +57,23 @@ def handler(event, context):
         import traceback
         traceback.print_exc()
         
-        # Return a proper error response
+        # Return a proper error response with CORS headers
+        origin = event.get('headers', {}).get('origin', '') if isinstance(event.get('headers', {}), dict) else ''
+        allowed_origins = [
+            'http://127.0.0.1:5500',
+            'http://localhost:5500',
+            'https://flask-vercel-deployment-amber.vercel.app'
+        ]
+        
+        cors_origin = '*'
+        if origin in allowed_origins:
+            cors_origin = origin
+            
         return {
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': 'http://127.0.0.1:5500',
+                'Access-Control-Allow-Origin': cors_origin,
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
                 'Access-Control-Allow-Credentials': 'true'
