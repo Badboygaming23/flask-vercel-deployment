@@ -58,63 +58,107 @@ def handler(event, context):
         traceback.print_exc()
         
         # Return a proper error response with CORS headers
-        origin = event.get('headers', {}).get('origin', '') if isinstance(event.get('headers', {}), dict) else ''
-        allowed_origins = [
-            'http://127.0.0.1:5500',
-            'http://localhost:5500',
-            'https://flask-vercel-deployment-amber.vercel.app'
-        ]
-        
-        cors_origin = '*'
-        if origin in allowed_origins:
-            cors_origin = origin
+        try:
+            origin = ''
+            if isinstance(event, dict) and 'headers' in event and isinstance(event['headers'], dict):
+                origin = event['headers'].get('origin', '')
             
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': cors_origin,
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-                'Access-Control-Allow-Credentials': 'true'
-            },
-            'body': json.dumps({
-                'error': 'Internal Server Error',
-                'message': str(e)
-            })
-        }
+            allowed_origins = [
+                'http://127.0.0.1:5500',
+                'http://localhost:5500',
+                'https://flask-vercel-deployment-amber.vercel.app'
+            ]
+            
+            cors_origin = '*'
+            if origin in allowed_origins:
+                cors_origin = origin
+                
+            return {
+                'statusCode': 500,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': cors_origin,
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                    'Access-Control-Allow-Credentials': 'true'
+                },
+                'body': json.dumps({
+                    'error': 'Internal Server Error',
+                    'message': str(e)
+                })
+            }
+        except Exception as inner_e:
+            # If we can't even create an error response, return a minimal one
+            return {
+                'statusCode': 500,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                    'Access-Control-Allow-Credentials': 'true'
+                },
+                'body': json.dumps({
+                    'error': 'Internal Server Error',
+                    'message': 'An unexpected error occurred'
+                })
+            }
 
 def create_wsgi_environ(event, context):
     """Create a WSGI environ dict from Vercel event"""
-    # Get request data
-    method = event.get('method', 'GET')
-    path = event.get('path', '/')
-    query_string = event.get('queryString', '')
-    headers = event.get('headers', {})
-    body = event.get('body', '')
-    
-    # Create environ dict
-    environ = {
-        'REQUEST_METHOD': method,
-        'PATH_INFO': path,
-        'QUERY_STRING': query_string,
-        'CONTENT_TYPE': headers.get('content-type', ''),
-        'CONTENT_LENGTH': str(len(body.encode()) if isinstance(body, str) else len(body)),
-        'SERVER_NAME': 'localhost',
-        'SERVER_PORT': '443' if headers.get('x-forwarded-proto') == 'https' else '80',
-        'SERVER_PROTOCOL': 'HTTP/1.1',
-        'wsgi.version': (1, 0),
-        'wsgi.url_scheme': headers.get('x-forwarded-proto', 'http'),
-        'wsgi.input': io.BytesIO(body.encode() if isinstance(body, str) else body),
-        'wsgi.errors': sys.stderr,
-        'wsgi.multithread': False,
-        'wsgi.multiprocess': False,
-        'wsgi.run_once': True,
-        'wsgi.async': False,
-    }
-    
-    # Add HTTP headers
-    for key, value in headers.items():
-        environ[f'HTTP_{key.upper().replace("-", "_")}'] = value
-    
-    return environ
+    try:
+        # Get request data
+        method = event.get('method', 'GET')
+        path = event.get('path', '/')
+        query_string = event.get('queryString', '')
+        headers = event.get('headers', {})
+        body = event.get('body', '')
+        
+        # Create environ dict
+        environ = {
+            'REQUEST_METHOD': method,
+            'PATH_INFO': path,
+            'QUERY_STRING': query_string,
+            'CONTENT_TYPE': headers.get('content-type', ''),
+            'CONTENT_LENGTH': str(len(body.encode()) if isinstance(body, str) else len(body)),
+            'SERVER_NAME': 'localhost',
+            'SERVER_PORT': '443' if headers.get('x-forwarded-proto') == 'https' else '80',
+            'SERVER_PROTOCOL': 'HTTP/1.1',
+            'wsgi.version': (1, 0),
+            'wsgi.url_scheme': headers.get('x-forwarded-proto', 'http'),
+            'wsgi.input': io.BytesIO(body.encode() if isinstance(body, str) else body),
+            'wsgi.errors': sys.stderr,
+            'wsgi.multithread': False,
+            'wsgi.multiprocess': False,
+            'wsgi.run_once': True,
+            'wsgi.async': False,
+        }
+        
+        # Add HTTP headers
+        for key, value in headers.items():
+            environ[f'HTTP_{key.upper().replace("-", "_")}'] = value
+        
+        return environ
+    except Exception as e:
+        print(f"Error creating WSGI environ: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Return a minimal environ dict
+        return {
+            'REQUEST_METHOD': 'GET',
+            'PATH_INFO': '/',
+            'QUERY_STRING': '',
+            'CONTENT_TYPE': '',
+            'CONTENT_LENGTH': '0',
+            'SERVER_NAME': 'localhost',
+            'SERVER_PORT': '80',
+            'SERVER_PROTOCOL': 'HTTP/1.1',
+            'wsgi.version': (1, 0),
+            'wsgi.url_scheme': 'http',
+            'wsgi.input': io.BytesIO(b''),
+            'wsgi.errors': sys.stderr,
+            'wsgi.multithread': False,
+            'wsgi.multiprocess': False,
+            'wsgi.run_once': True,
+            'wsgi.async': False,
+        }

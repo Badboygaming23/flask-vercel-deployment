@@ -74,12 +74,10 @@ def after_request(response):
     
     if origin in allowed_origins:
         response.headers.add("Access-Control-Allow-Origin", origin)
-    else:
+    # Don't add the header if it's already present to avoid duplicates
+    elif "Access-Control-Allow-Origin" not in response.headers:
         response.headers.add("Access-Control-Allow-Origin", "*")
         
-    response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With")
-    response.headers.add('Access-Control-Allow-Methods', "GET, POST, PUT, DELETE, OPTIONS")
-    response.headers.add('Access-Control-Allow-Credentials', "true")
     return response
 
 # Serve static files from the frontend directory
