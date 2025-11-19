@@ -30,3 +30,11 @@ CREATE TABLE IF NOT EXISTS otps (
   created_at TIMESTAMP DEFAULT NOW(),
   expires_at TIMESTAMP NOT NULL
 );
+
+-- Items table
+CREATE TABLE IF NOT EXISTS items (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+);
