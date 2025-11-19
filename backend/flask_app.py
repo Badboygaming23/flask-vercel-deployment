@@ -9,32 +9,21 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import our modules
 from config import Config
-from supabase_client import get_supabase_client
-from utils.mailer import send_otp_email, send_password_reset_email
-from utils.supabase_storage import upload_file_to_supabase, delete_file_from_supabase
-from middleware.auth import authenticate_token
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Enable CORS with specific origins for development and production
-CORS(app, 
-     origins=[
-         "http://127.0.0.1:5500",  # Local development server
-         "http://localhost:5500",   # Alternative local development server
-         "https://flask-vercel-deployment-amber.vercel.app"  # Production
-     ],
-     supports_credentials=True,
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "X-Requested-With"])
+# Enable CORS
+CORS(app)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Supabase client
+# Import Supabase client after app initialization
 try:
+    from supabase_client import get_supabase_client
     supabase = get_supabase_client()
 except Exception as e:
     logger.error(f"Failed to initialize Supabase client: {str(e)}")
@@ -45,40 +34,10 @@ except Exception as e:
 def handle_preflight():
     if request.method == "OPTIONS":
         response = jsonify()
-        origin = request.headers.get('Origin', '')
-        allowed_origins = [
-            'http://127.0.0.1:5500',
-            'http://localhost:5500',
-            'https://flask-vercel-deployment-amber.vercel.app'
-        ]
-        
-        if origin in allowed_origins:
-            response.headers.add("Access-Control-Allow-Origin", origin)
-        else:
-            response.headers.add("Access-Control-Allow-Origin", "*")
-            
+        response.headers.add("Access-Control-Allow-Origin", "*")
         response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With")
         response.headers.add('Access-Control-Allow-Methods', "GET, POST, PUT, DELETE, OPTIONS")
-        response.headers.add('Access-Control-Allow-Credentials', "true")
         return response
-
-# Add after_request handler to ensure CORS headers are added to all responses
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin', '')
-    allowed_origins = [
-        'http://127.0.0.1:5500',
-        'http://localhost:5500',
-        'https://flask-vercel-deployment-amber.vercel.app'
-    ]
-    
-    if origin in allowed_origins:
-        response.headers.add("Access-Control-Allow-Origin", origin)
-    # Don't add the header if it's already present to avoid duplicates
-    elif "Access-Control-Allow-Origin" not in response.headers:
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        
-    return response
 
 # Serve static files from the frontend directory
 @app.route('/')
@@ -107,12 +66,15 @@ def images(filename):
         # If file not found, return 404
         return jsonify({'success': False, 'message': 'Image not found'}), 404
 
-# Import and register blueprints
-from routes import auth_bp, user_bp, account_bp, item_bp
-app.register_blueprint(auth_bp)
-app.register_blueprint(user_bp)
-app.register_blueprint(account_bp)
-app.register_blueprint(item_bp)
+# Import and register blueprints after app initialization
+try:
+    from routes import auth_bp, user_bp, account_bp, item_bp
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(user_bp)
+    app.register_blueprint(account_bp)
+    app.register_blueprint(item_bp)
+except Exception as e:
+    logger.error(f"Failed to import and register blueprints: {str(e)}")
 
 # For Vercel serverless deployment
 if __name__ != '__main__':
