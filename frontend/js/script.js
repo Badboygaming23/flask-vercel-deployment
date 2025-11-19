@@ -1,5 +1,5 @@
 // Use the Vercel backend URL for all environments
-const BASE_URL = 'https://flask-vercel-deployment-amber.vercel.app/';
+const BASE_URL = 'https://flask-vercel-deployment-amber.vercel.app';
 
 // Make BASE_URL available globally for other scripts
 window.BASE_URL = BASE_URL;
@@ -307,6 +307,45 @@ const toggleSpinner = (form, show) => {
     }
 };
 
+if (document.getElementById('loginForm')) {
+    document.getElementById('loginForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        toggleSpinner(this, true);
+        
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const passwordField = document.getElementById('login-password');
+
+        fetch(`${BASE_URL}/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        })
+        .then(response => response.json())
+        .then(data => {
+            showToast(data.message, data.success ? "success" : "error");
+                if (data.success) {
+                    localStorage.setItem('authToken', data.token);
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html';
+                    }, 1000);
+                } else {
+                    passwordField.value = '';
+                }
+        })
+        .catch(error => {
+            console.error('Error during login:', error);
+            showToast("An error occurred during login. Please try again.", "error");
+            passwordField.value = '';
+        })
+        .finally(() => {
+            toggleSpinner(this, false);
+        });
+    });
+}
+
 if (document.getElementById('requestOtpButton')) {
     document.getElementById('requestOtpButton').addEventListener('click', async function(event) {
         event.preventDefault();
@@ -446,45 +485,6 @@ if (otpInputSingle) {
     });
 }
 
-if (document.getElementById('loginForm')) {
-    document.getElementById('loginForm').addEventListener('submit', function(event) {
-        event.preventDefault();
-        toggleSpinner(this, true);
-        
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        const passwordField = document.getElementById('login-password');
-
-        fetch(`${BASE_URL}/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ email, password })
-        })
-        .then(response => response.json())
-        .then(data => {
-            showToast(data.message, data.success ? "success" : "error");
-                if (data.success) {
-                    localStorage.setItem('authToken', data.token);
-                    setTimeout(() => {
-                        window.location.href = 'dashboard.html';
-                    }, 1000);
-                } else {
-                    passwordField.value = '';
-                }
-        })
-        .catch(error => {
-            console.error('Error during login:', error);
-            showToast("An error occurred during login. Please try again.", "error");
-            passwordField.value = '';
-        })
-        .finally(() => {
-            toggleSpinner(this, false);
-        });
-    });
-}
-
 if (forgotPasswordBreadcrumbs) {
     const updateForgotPasswordBreadcrumbs = (step) => {
         const breadcrumbItems = forgotPasswordBreadcrumbs.querySelectorAll('.breadcrumb-item');
@@ -515,6 +515,7 @@ if (forgotPasswordBreadcrumbs) {
         });
     }
 
+    // Update the forgot password request OTP functionality
     if (forgotPasswordRequestOtpForm) {
         forgotPasswordRequestOtpForm.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -578,6 +579,7 @@ if (forgotPasswordBreadcrumbs) {
         });
     }
 
+    // Update the forgot password resend OTP functionality
     if (forgotResendOtpButton) {
         forgotResendOtpButton.addEventListener('click', async () => {
             if (!forgotPasswordEmail) {
@@ -612,6 +614,7 @@ if (forgotPasswordBreadcrumbs) {
         });
     }
 
+    // Update the reset password functionality
     if (forgotPasswordResetForm) {
         forgotPasswordResetForm.addEventListener('submit', async (event) => {
             event.preventDefault();
