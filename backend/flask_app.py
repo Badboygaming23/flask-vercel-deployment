@@ -115,6 +115,11 @@ try:
 except Exception as e:
     logger.error(f"Failed to import and register blueprints: {str(e)}")
 
+# Health check endpoint
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'ok', 'message': 'Backend is running properly'})
+
 # For Vercel serverless deployment
 if __name__ != '__main__':
     app.logger.setLevel(logging.INFO)
