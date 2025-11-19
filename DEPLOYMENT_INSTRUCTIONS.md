@@ -9,8 +9,8 @@
 ### Option 1: Using Vercel Dashboard
 1. Go to https://vercel.com/dashboard
 2. Click "New Project"
-3. Import your GitHub repository `badboygamingph/flask-vercel-deployment`
-4. Set the project name to `flask-vercel-deployment-amber`
+3. Import your GitHub repository `Badboygaming23/flask-vercel-deployment`
+4. Set the project name to `flask-vercel-deployment-ten`
 5. Configure the build settings:
    - Build Command: `pip install -r backend/requirements.txt`
    - Output Directory: Leave empty
@@ -19,7 +19,7 @@
    - `SUPABASE_URL` - Your Supabase project URL
    - `SUPABASE_KEY` - Your Supabase project API key
    - `JWT_SECRET` - Your JWT secret key
-   - `BASE_URL` - Your deployed URL (e.g., https://flask-vercel-deployment-amber.vercel.app)
+   - `BASE_URL` - Your deployed URL (e.g., https://flask-vercel-deployment-ten.vercel.app)
 7. Click "Deploy"
 
 ### Option 2: Using Vercel CLI
@@ -36,14 +36,14 @@
 - Serverless wrapper is in `backend/vercel_wrapper.py`
 
 ## Custom Domain Setup
-To use the URL https://flask-vercel-deployment-amber.vercel.app/:
+To use the URL https://flask-vercel-deployment-ten.vercel.app/:
 
 1. In Vercel Dashboard, go to your project
 2. Click "Settings" tab
 3. Click "Domains" in the sidebar
-4. Add domain: `flask-vercel-deployment-amber.vercel.app`
+4. Add domain: `flask-vercel-deployment-ten.vercel.app`
 
-Note: This domain should be automatically assigned if your project name is `flask-vercel-deployment-amber`.
+Note: This domain should be automatically assigned if your project name is `flask-vercel-deployment-ten`.
 
 ## Troubleshooting
 

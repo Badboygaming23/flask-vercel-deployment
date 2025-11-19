@@ -1,4 +1,5 @@
-// Use the Vercel backend URL for all environments
-const getBaseUrl = () => {
-    return 'https://flask-vercel-deployment-amber.vercel.app';
-};
+// config.js
+function getBackendUrl() {
+    // Use the Vercel backend URL for all environments
+    return 'https://flask-vercel-deployment-ten.vercel.app';
+}

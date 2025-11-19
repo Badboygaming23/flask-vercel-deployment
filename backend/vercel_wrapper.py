@@ -36,7 +36,7 @@ def handler(event, context):
             'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({
                 'error': 'Internal Server Error',
-                'message': str(e)
+                'message': 'An unexpected error occurred'
             })
         }
 
@@ -58,10 +58,10 @@ def create_wsgi_environ(event, context):
             'CONTENT_TYPE': headers.get('content-type', ''),
             'CONTENT_LENGTH': str(len(body.encode()) if isinstance(body, str) else len(body)),
             'SERVER_NAME': 'localhost',
-            'SERVER_PORT': '443' if headers.get('x-forwarded-proto') == 'https' else '80',
+            'SERVER_PORT': '80',
             'SERVER_PROTOCOL': 'HTTP/1.1',
             'wsgi.version': (1, 0),
-            'wsgi.url_scheme': headers.get('x-forwarded-proto', 'http'),
+            'wsgi.url_scheme': 'http',
             'wsgi.input': io.BytesIO(body.encode() if isinstance(body, str) else body),
             'wsgi.errors': sys.stderr,
             'wsgi.multithread': False,
